@@ -1,2 +1,1 @@
-import Table from "../components/table"
-export default () => <Table />
+export default () => <h1>hello</h1>
