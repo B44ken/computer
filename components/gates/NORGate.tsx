@@ -8,7 +8,7 @@ export const NORGateView = (props: GateViewProps) => {
     </GateView>
 }
 
-export const NORGate = makeGate([2, 2], NORGateView, {
+export const NORGate = makeGate("NOR", [2, 2], NORGateView, {
     'Y': { 'type': 'out', 'coord': [2, 1], 'invert': true },
     'A': { 'type': 'in', 'coord': [0, 0] },
     'B': { 'type': 'in', 'coord': [0, 2] }

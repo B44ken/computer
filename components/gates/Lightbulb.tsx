@@ -8,4 +8,4 @@ export const LightbulbView = (props: GateViewProps) => {
     </GateView>
 }
 
-export const Lightbulb = makeGate([2, 2], LightbulbView, { 'A': { 'type': 'in', 'coord': [0, 1] } }, (g) => g.set('A', g.get('A')))
+export const Lightbulb = makeGate("Lightbulb", [2, 2], LightbulbView, { 'A': { 'type': 'in', 'coord': [0, 1] } }, (g) => g.set('A', g.get('A')))

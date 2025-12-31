@@ -7,7 +7,7 @@ export const ORGateView = (props: GateViewProps) => {
     </GateView>
 }
 
-export const ORGate = makeGate([2, 2], ORGateView, {
+export const ORGate = makeGate("OR", [2, 2], ORGateView, {
     'Y': { 'type': 'out', 'coord': [2, 1] },
     'A': { 'type': 'in', 'coord': [0, 0] },
     'B': { 'type': 'in', 'coord': [0, 2] }

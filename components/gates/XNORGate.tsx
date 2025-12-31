@@ -9,7 +9,7 @@ export const XNORGateView = (props: GateViewProps) => {
     </GateView>
 }
 
-export const XNORGate = makeGate([2, 2], XNORGateView, {
+export const XNORGate = makeGate("XNOR", [2, 2], XNORGateView, {
     'Y': { 'type': 'out', 'coord': [2, 1], 'invert': true },
     'A': { 'type': 'in', 'coord': [0, 0] },
     'B': { 'type': 'in', 'coord': [0, 2] }

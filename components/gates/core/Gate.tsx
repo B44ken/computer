@@ -29,8 +29,9 @@ export class Gate {
     }
 }
 
-export const makeGate = (size: [number, number], view: (props: GateViewProps) => React.ReactNode, pins: PinDecl, update: (g: Gate) => boolean) => {
+export const makeGate = (type: string, size: [number, number], view: (props: GateViewProps) => React.ReactNode, pins: PinDecl, update: (g: Gate) => boolean) => {
     return class extends Gate {
+        static type = type
         constructor(name?: string) { super(name, size, pins, view) }
         update() { return update(this) }
     }

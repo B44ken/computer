@@ -15,7 +15,7 @@ export const Toolbox = ({ tool, setTool }: { tool: Tool, setTool: Dispatch<SetSt
     return <div className="flex justify-center flex-wrap select-none">
         {tools.map((t, i) =>
             <button key={i} className={`mx-1 w-[72px] border-b-2 ${t == tool ? "font-bold" : ""}`} onClick={() => setTool(() => t)}>
-                {typeof t == 'string' ? t : new t().view.name.replace(/View|Gate/g, "")}
+                {typeof t == 'string' ? t : (t as any).type}
             </button>
         )}
     </div >

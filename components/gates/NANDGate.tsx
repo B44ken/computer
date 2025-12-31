@@ -8,7 +8,7 @@ export const NANDGateView = (props: GateViewProps) => {
     </GateView>
 }
 
-export const NANDGate = makeGate([2, 2], NANDGateView, {
+export const NANDGate = makeGate("NAND", [2, 2], NANDGateView, {
     'Y': { 'type': 'out', 'coord': [2, 1], 'invert': true },
     'A': { 'type': 'in', 'coord': [0, 0] },
     'B': { 'type': 'in', 'coord': [0, 2] }

@@ -8,7 +8,7 @@ export const NOTGateView = (props: GateViewProps) => {
     </GateView>
 }
 
-export const NOTGate = makeGate([2, 2], NOTGateView, {
+export const NOTGate = makeGate("NOT", [2, 2], NOTGateView, {
     'Y': { 'type': 'out', 'coord': [2, 1], 'invert': true },
     'A': { 'type': 'in', 'coord': [0, 1] }
 }, (g) => g.set('Y', !g.get('A')))
