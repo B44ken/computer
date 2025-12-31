@@ -1,4 +1,4 @@
-import { Coord, coord } from "../../../lib/coord"
+import { Coord, coord, isPointOnSegment } from "../../../lib/coord"
 
 export class Wire {
     public path: Coord[]
@@ -10,4 +10,11 @@ export class Wire {
             else i++
         }
     }
+
+    has(p: Coord) {
+        for (let i = 0; i < this.path.length - 1; i++)
+            if (isPointOnSegment(p, this.path[i], this.path[i + 1])) return true
+        return false
+    }
 }
+

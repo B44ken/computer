@@ -10,4 +10,18 @@ export class Coord {
     toString() { return `(${this.x}, ${this.y})` }
 }
 
+
 export const coord = (a: [number, number] | Coord) => a instanceof Coord ? a : new Coord(a[0], a[1])
+
+export function isPointOnSegment(p: Coord, a: Coord, b: Coord): boolean {
+    const crossProduct = (p.y - a.y) * (b.x - a.x) - (p.x - a.x) * (b.y - a.y)
+    if (Math.abs(crossProduct) > Number.EPSILON) return false
+
+    const dotProduct = (p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)
+    if (dotProduct < 0) return false
+
+    const squaredLength = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)
+    if (dotProduct > squaredLength) return false
+
+    return true
+}

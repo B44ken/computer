@@ -3,16 +3,18 @@ import { GateView } from "./views/GateView"
 import { GateViewProps } from "./core/types"
 
 export const XORGateView = (props: GateViewProps) => {
+    const { width, gate } = props
+    const s = width / gate.size.x
     return <GateView {...props}>
-        <path d="M0 0 Q16 24 0 48" fill="none" stroke="#999" strokeWidth={2} />
-        <path d="M4 0 Q20 24 4 48 L24 48 Q46 48 48 24 Q46 0 24 0 Z" fill={props.hover ? '#555' : '#000'} stroke="#999" strokeWidth={2} />
+        <path d={`M0 0 Q${s * 0.66} ${s} 0 ${s * 2}`} fill="none" stroke="#999" strokeWidth={s * 0.08} />
+        <path d={`M${s * 0.16} 0 Q${s * 0.83} ${s} ${s * 0.16} ${s * 2} L${s} ${s * 2} Q${s * 1.91} ${s * 2} ${s * 2} ${s} Q${s * 1.91} 0 ${s} 0 Z`} fill={props.hover ? '#555' : '#000'} stroke="#999" strokeWidth={s * 0.08} />
     </GateView>
 }
 
 export class XORGate extends Gate {
     static View = XORGateView
-    constructor() {
-        super([2, 2], {
+    constructor(name?: string) {
+        super(name, [2, 2], {
             'Y': { 'type': 'out', 'coord': [2, 1] },
             'A': { 'type': 'in', 'coord': [0, 0] },
             'B': { 'type': 'in', 'coord': [0, 2] }

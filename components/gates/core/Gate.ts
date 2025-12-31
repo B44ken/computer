@@ -5,11 +5,14 @@ export class Gate {
     public size: Coord
     public pins: Pinout
 
-    constructor(size: Coord | [number, number], pins: {
+    constructor(public name: string, size: Coord | [number, number], pins: {
         [key: string]: { type: 'in' | 'out', coord: Coord | [number, number], invert?: boolean }
     }) {
+        this.name = name
         this.size = coord(size)
-        this.pins = Object.fromEntries(Object.entries(pins).map(([k, v]) => [k, { ...v, coord: coord(v.coord) }]))
+        this.pins = {}
+        for (const [name, pin] of Object.entries(pins))
+            this.pins[name] = { ...pin, coord: coord(pin.coord) }
     }
 
     update() { return false } // abstract

@@ -20,7 +20,7 @@ export default () => {
         .add(new Lightbulb(), [13, 7])
         .add(new Wire([[12, 8], [13, 8]]), [0, 0]))
 
-    return <div className="m-2 h-full">
+    return <div className="m-2 h-full select-none">
         <Toolbox selected={selected} setSelected={setSelected} />
         <CircuitBoard tool={selected} circuit={uc.circuit} onGateMove={uc.updateGate} />
     </div>

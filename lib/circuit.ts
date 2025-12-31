@@ -9,11 +9,10 @@ export class Circuit {
     wires: ComponentItem<Wire>[] = []
     connections: Connection[] | null = null
     unconnected: { item: Gate, pin: string }[] | null = null
-    add(c: Gate | Wire, cd?: Coord | [number, number]) {
-        cd = coord(cd || [0, 0])
-        if (c instanceof Gate) this.gates.push({ item: c, coords: cd })
-        else if (c instanceof Wire) this.wires.push({ item: c, coords: cd })
-        else console.warn("tried to add", c)
+    add(item: Gate | Wire, coords?: Coord | [number, number]) {
+        coords = coord(coords || [0, 0])
+        if (item instanceof Gate) this.gates.push({ item, coords })
+        else if (item instanceof Wire) this.wires.push({ item, coords })
         this.invalidate()
         return this
     }
@@ -32,16 +31,6 @@ export class Circuit {
         this.invalidate()
     }
 
-    private findPinAt(pos: Coord) {
-        for (const g of this.gates) {
-            for (const p in g.item.pins) {
-                const pin = g.item.pins[p]
-                const abs = pin.coord.add(g.coords)
-                if (abs.eq(pos)) return { item: g.item, pin: p, type: pin.type }
-            }
-        }
-    }
-
     invalidate() { this.connections = this.unconnected = null }
 
     private buildUnconnected() {
@@ -55,27 +44,66 @@ export class Circuit {
         this.unconnected = []
         for (const { item } of this.gates)
             for (const name in item.pins)
-                if (item.pins[name].type === 'in')
+                if (item.pins[name].type == 'in')
                     if (!driven.get(item)?.has(name))
                         this.unconnected.push({ item, pin: name })
     }
 
-    buildConnections() {
-        let conns: Connection[] = []
-        for (const w of this.wires) {
-            // todo something about non-termini wire connections
-            const start = this.findPinAt(w.item.path[0])
-            const end = this.findPinAt(w.item.path[w.item.path.length - 1])
 
-            if (start && end) {
-                if (start.type === 'out' && end.type === 'in')
-                    conns.push({ from: start.item, to: end.item, fromPin: start.pin, toPin: end.pin, via: w.item })
-                else if (end.type === 'out' && start.type === 'in')
-                    conns.push({ from: end.item, to: start.item, fromPin: end.pin, toPin: start.pin, via: w.item })
+    buildConnections() {
+        const nets = new Map<Wire, Set<Wire>>()
+
+        for (const { item } of this.wires)
+            nets.set(item, new Set([item]))
+
+        const wires = this.wires.map(w => w.item)
+        for (let i = 0; i < wires.length; i++) {
+            for (let j = i + 1; j < wires.length; j++) {
+                const w1 = wires[i], w2 = wires[j]
+
+                const connected = w2.has(w1.path[0]) || w2.has(w1.path[w1.path.length - 1]) || w1.has(w2.path[0]) || w1.has(w2.path[w2.path.length - 1])
+                if (!connected) continue
+                const set1 = nets.get(w1)!, set2 = nets.get(w2)!
+                if (set1 != set2) {
+                    for (const w of set2) {
+                        set1.add(w)
+                        nets.set(w, set1)
+                    }
+                }
             }
         }
+
+        const uniqueNets = new Set<Set<Wire>>(nets.values())
+
+        const conns: Connection[] = []
+
+        for (const net of uniqueNets) {
+            const drivers: { item: Gate, pin: string }[] = []
+            const receivers: { item: Gate, pin: string }[] = []
+
+            for (const g of this.gates) {
+                for (const pName in g.item.pins) {
+                    const pin = g.item.pins[pName]
+                    const pinPos = pin.coord.add(g.coords)
+
+                    let onNet = [...net].some(w => w.has(pinPos))
+
+                    if (onNet) {
+                        if (pin.type == 'out') drivers.push({ item: g.item, pin: pName })
+                        else if (pin.type == 'in') receivers.push({ item: g.item, pin: pName })
+                    }
+                }
+            }
+
+            const representativeWire = net.values().next().value
+            for (const { item: from, pin: fromPin } of drivers)
+                for (const { item: to, pin: toPin } of receivers)
+                    conns.push({ from, to, fromPin, toPin, via: representativeWire })
+        }
+
         this.connections = conns
     }
+
 
     update(maxIters = 20) {
         if (!this.connections) this.buildConnections()
