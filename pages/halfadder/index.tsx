@@ -7,7 +7,7 @@ import { useState } from "react"
 import { Tool, Toolbox } from "../../components/Toolbox"
 
 export default () => {
-    const [selected, setSelected] = useState<Tool>("Interact")
+    const [tool, setTool] = useState<Tool>("Interact")
     const [circuitData] = useState(() => {
         const c = new Circuit()
         const a = new Button("a")
@@ -37,9 +37,9 @@ export default () => {
     const uc = useCircuit(circuitData.circuit)
 
     return <div className="m-2 h-full relative flex flex-row justify-evenly">
-        <CircuitBoard tool={selected} circuit={uc.circuit} onGateMove={uc.updateGate} />
+        <CircuitBoard tool={tool} {...uc} />
         <div className="w-[30%] flex flex-col items-center gap-2">
-            <Toolbox selected={selected} setSelected={setSelected} />
+            <Toolbox tool={tool} setTool={setTool} />
             <TruthTable circuit={uc.circuit} ins={circuitData.ins} outs={circuitData.outs} />
         </div>
     </div>

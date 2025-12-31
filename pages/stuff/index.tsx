@@ -6,7 +6,7 @@ import { Tool, Toolbox } from "../../components/Toolbox"
 import { useCircuit } from "../../hooks/useCircuit"
 
 export default () => {
-    const [selected, setSelected] = useState<Tool>("Interact")
+    const [tool, setTool] = useState<Tool>("Interact")
     const uc = useCircuit(new Circuit()
         .add(new Button(), [1, 6])
         .add(new Wire([[3, 7], [7, 7]]), [0, 0])
@@ -21,7 +21,7 @@ export default () => {
         .add(new Wire([[12, 8], [13, 8]]), [0, 0]))
 
     return <div className="m-2 h-full select-none">
-        <Toolbox selected={selected} setSelected={setSelected} />
-        <CircuitBoard tool={selected} circuit={uc.circuit} onGateMove={uc.updateGate} />
+        <Toolbox tool={tool} setTool={setTool} />
+        <CircuitBoard tool={tool} {...uc} />
     </div>
 }

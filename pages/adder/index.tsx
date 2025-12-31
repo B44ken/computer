@@ -99,10 +99,10 @@ export default () => {
     const [circuit] = useState(() => createAdderCircuit());
     const uc = useCircuit(circuit)
 
-    const [selected, setSelected] = useState<Tool>("Interact")
+    const [tool, setTool] = useState<Tool>("Interact")
 
     return <div className="m-2 h-full select-none">
-        <Toolbox selected={selected} setSelected={setSelected} />
-        <CircuitBoard tool={selected} circuit={uc.circuit} onGateMove={uc.updateGate} />
+        <Toolbox tool={tool} setTool={setTool} />
+        <CircuitBoard tool={tool} {...uc} />
     </div>
 }

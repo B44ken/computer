@@ -1,9 +1,9 @@
-import { Button, Gate } from "./gates"
+import { Gate } from "./gates"
 import { Circuit } from "../lib/circuit"
 import { truthTable } from "../lib/truthtable"
 import { useEffect, useState } from "react"
 
-export const TruthTable = ({ circuit, ins, outs }: { circuit: Circuit, ins: Button[], outs: Gate[] }) => {
+export const TruthTable = ({ circuit, ins, outs }: { circuit: Circuit, ins: Gate[], outs: Gate[] }) => {
     const [table, setTable] = useState<{ input: boolean[], output: boolean[] }[]>([])
     useEffect(() => setTable(truthTable(circuit, ins, outs)), [circuit, ins, outs])
 

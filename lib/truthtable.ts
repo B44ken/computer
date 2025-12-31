@@ -1,11 +1,11 @@
-import { Button, Lightbulb } from "../components/gates"
+import { Lightbulb } from "../components/gates"
 import { Gate } from "../components/gates"
 import { Circuit } from "./circuit"
 
 const cartesianProd = (N: number): boolean[][] =>
     Array.from({ length: 2 ** N }, (_, i) => Array.from({ length: N }, (_, j) => Boolean(i & (1 << j))))
 
-const pokeCircuit = (circuit: Circuit, inputParts: Button[], inputs: boolean[]): void => {
+const pokeCircuit = (circuit: Circuit, inputParts: Gate[], inputs: boolean[]): void => {
     inputParts.forEach((btn, idx) => btn.set('Y', inputs[idx]))
     circuit.update()
 }

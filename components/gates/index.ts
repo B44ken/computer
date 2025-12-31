@@ -11,5 +11,3 @@ export * from "./ANDGate"
 export * from "./NORGate"
 export * from "./XORGate"
 export * from "./XNORGate"
-
-export * from "./views/GateView"
