@@ -1,5 +1,6 @@
 import { Gate, Wire } from "../components/gates";
 import { Coord, coord } from "./coord";
+import { isValidPlacement } from "./overlap";
 
 export type ComponentItem<T> = { item: T, coords: Coord }
 type Connection = { from: Gate, to: Gate, fromPin: string, toPin: string, via: Wire }
@@ -11,6 +12,7 @@ export class Circuit {
     unconnected: { item: Gate, pin: string }[] | null = null
     add(item: Gate | Wire, coords?: Coord | [number, number]) {
         coords = coord(coords || [0, 0])
+        if (!isValidPlacement(this, item, coords)) return this;
         if (item instanceof Gate) this.gates.push({ item, coords })
         else if (item instanceof Wire) this.wires.push({ item, coords })
         this.invalidate()
