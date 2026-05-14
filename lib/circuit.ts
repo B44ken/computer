@@ -61,7 +61,7 @@ export class Circuit {
             for (let j = i + 1; j < wires.length; j++) {
                 const w1 = wires[i], w2 = wires[j]
 
-                const connected = w2.has(w1.path[0]) || w2.has(w1.path[w1.path.length - 1]) || w1.has(w2.path[0]) || w1.has(w2.path[w2.path.length - 1])
+                const connected = w1.path.some(p => w2.has(p)) || w2.path.some(p => w1.has(p))
                 if (!connected) continue
                 const set1 = nets.get(w1)!, set2 = nets.get(w2)!
                 if (set1 != set2) {

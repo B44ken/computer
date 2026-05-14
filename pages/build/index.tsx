@@ -4,8 +4,10 @@ import { Circuit } from "../../lib/circuit"
 import { CircuitBoard } from "../../components/CircuitBoard"
 import { Tool, Toolbox } from "../../components/Toolbox"
 import { useCircuit } from "../../hooks/useCircuit"
-import { Button, Lightbulb } from "../../components/gates"
-import { Gate } from "../../components/gates/core/Gate"
+import { Button, Lightbulb, Gate } from "../../components/gates"
+
+
+
 
 export default () => {
     const [step, setStep] = useState(0);
@@ -41,8 +43,6 @@ export default () => {
 
 // Helper to check if a circuit meets a truth table requirement
 const checkTruthTable = (circuit: Circuit, ins: Gate[], outs: Gate[], expected: boolean[][]) => {
-    // Basic truth table verification logic
-    // We iterate over the cartesian product of inputs
     const N = ins.length;
     let success = true;
     for (let i = 0; i < (1 << N); i++) {
@@ -50,7 +50,12 @@ const checkTruthTable = (circuit: Circuit, ins: Gate[], outs: Gate[], expected: 
         for (let j = 0; j < N; j++) {
             ins[j].set('Y', Boolean(i & (1 << j)));
         }
+
         circuit.update();
+        circuit.update(); // propagate multiple stages if needed
+        circuit.update();
+        circuit.update();
+
         // Check outputs
         for (let j = 0; j < outs.length; j++) {
             const outVal = (outs[j] instanceof Lightbulb ? (outs[j] as any).pins.A : Object.values(outs[j].pins).find(p => p.type == 'out'))?.voltage || false;
@@ -67,8 +72,6 @@ const checkTruthTable = (circuit: Circuit, ins: Gate[], outs: Gate[], expected: 
     return success;
 }
 
-
-// Step 0: Introduction to bits and physical representation
 const Step0 = ({ onComplete }: { onComplete: () => void }) => {
     return (
         <div>
@@ -88,7 +91,6 @@ const Step0 = ({ onComplete }: { onComplete: () => void }) => {
     )
 }
 
-// Step 1: Logic Gates - AND
 const Step1 = ({ onComplete }: { onComplete: () => void }) => {
     const [tool, setTool] = useState<Tool>("Interact")
     const [circuitData] = useState(() => {
@@ -105,12 +107,8 @@ const Step1 = ({ onComplete }: { onComplete: () => void }) => {
     });
     const uc = useCircuit(circuitData.circuit);
 
+
     const verify = () => {
-        // Truth table for AND
-        // 0 0 -> 0
-        // 1 0 -> 0
-        // 0 1 -> 0
-        // 1 1 -> 1
         const expected = [[false], [false], [false], [true]];
         if (checkTruthTable(uc.circuit, circuitData.ins, circuitData.outs, expected)) {
             onComplete();
@@ -141,7 +139,6 @@ const Step1 = ({ onComplete }: { onComplete: () => void }) => {
     )
 }
 
-// Step 2: NOT & OR -> NAND
 const Step2 = ({ onComplete }: { onComplete: () => void }) => {
     const [tool, setTool] = useState<Tool>("Interact")
     const [circuitData] = useState(() => {
@@ -158,12 +155,8 @@ const Step2 = ({ onComplete }: { onComplete: () => void }) => {
     });
     const uc = useCircuit(circuitData.circuit);
 
+
     const verify = () => {
-        // Truth table for XOR
-        // 0 0 -> 0
-        // 1 0 -> 1
-        // 0 1 -> 1
-        // 1 1 -> 0
         const expected = [[false], [true], [true], [false]];
         if (checkTruthTable(uc.circuit, circuitData.ins, circuitData.outs, expected)) {
             onComplete();
@@ -195,7 +188,6 @@ const Step2 = ({ onComplete }: { onComplete: () => void }) => {
     )
 }
 
-// Step 3: Half Adder
 const Step3 = ({ onComplete }: { onComplete: () => void }) => {
     const [tool, setTool] = useState<Tool>("Interact")
     const [circuitData] = useState(() => {
@@ -215,12 +207,8 @@ const Step3 = ({ onComplete }: { onComplete: () => void }) => {
     });
     const uc = useCircuit(circuitData.circuit);
 
+
     const verify = () => {
-        // Truth table for Half Adder (A, B) -> (Sum, Carry)
-        // 0 0 -> 0, 0
-        // 1 0 -> 1, 0
-        // 0 1 -> 1, 0
-        // 1 1 -> 0, 1
         const expected = [
             [false, false],
             [true, false],
@@ -263,7 +251,6 @@ const Step3 = ({ onComplete }: { onComplete: () => void }) => {
     )
 }
 
-// Step 4: Completion
 const Step4 = () => {
     return (
         <div className="text-center">
