@@ -19,6 +19,7 @@ export const SVGGate = ({ gate, coords, scale, origin, onMouseUp, onMouseDown }:
         onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}
         onMouseUp={onMouseUp} onMouseDown={onMouseDown}>
         <gate.view gate={gate} width={gate.size.x * scale} height={gate.size.y * scale} hover={hover} />
+        {gate.name && <text x={0} y={-scale * 0.15} fontSize={scale * 0.5} fill="#666">{gate.name}</text>}
     </g>
 }
 
@@ -29,8 +30,7 @@ export const SVGWire = ({ wire, scale, origin, onMouseDown }: SVGWireProps) => {
     </g>
 }
 
-export const CircuitBoard = ({ tool, circuit, updateGate }: { tool: Tool, circuit: Circuit, updateGate: (id: number, coords: Coord) => void }) => {
-    const scale = 48
+export const CircuitBoard = ({ tool, circuit, updateGate, scale = 48 }: { tool: Tool, circuit: Circuit, updateGate: (id: number, coords: Coord) => void, scale?: number }) => {
     const [origin, setOrigin] = useState(coord([0, 0]))
     const [drag, setDrag] = useState<DragState | null>(null)
     const [mouse, setMouse] = useState(coord([0, 0]))
@@ -68,8 +68,11 @@ export const CircuitBoard = ({ tool, circuit, updateGate }: { tool: Tool, circui
         else if (tool == "Interact" && (target as SVGElement).tagName == "svg") setDrag({ start: mouse, pan: true })
     }
 
-    const dots = `bg-[radial-gradient(#eee_2px,#fff_2px)] bg-position-[24px_24px] bg-size-[48px_48px]`
-    return <svg className={`border-2 w-full h-7/8 ${dots}`} onMouseMove={mouseMove} onMouseUp={mouseUp} onMouseDown={mouseDown}>
+    const dots = {
+        backgroundImage: "radial-gradient(#eee 2px, #fff 2px)",
+        backgroundSize: `${scale}px ${scale}px`, backgroundPosition: `${scale / 2}px ${scale / 2}px`
+    }
+    return <svg className="border-2 w-full h-7/8" style={dots} onMouseMove={mouseMove} onMouseUp={mouseUp} onMouseDown={mouseDown}>
         {circuit.wires.map((w, i) => <SVGWire key={i} wire={w.item} {...{ scale, origin }} onMouseDown={() => wireMouseDown(w, i)} />)}
         {circuit.gates.map((g, i) => <SVGGate key={i} gate={g.item} {...{ scale, origin }} coords={g.coords}
             onMouseUp={() => drag?.start.eq(g.coords) && g.item.click()} onMouseDown={() => gateMouseDown(g, i)}
