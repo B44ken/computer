@@ -1,7 +1,7 @@
 import { Dispatch, SetStateAction, useEffect } from "react"
-import { Button, Lightbulb, NANDGate, NOTGate, ORGate, ANDGate, NORGate, XORGate, XNORGate } from "./gates"
+import { Button, Lightbulb, NANDGate, NOTGate, ORGate, ANDGate, NORGate, XORGate, XNORGate, Cross } from "./gates"
 
-const tools = [Button, Lightbulb, NANDGate, NOTGate, ORGate, ANDGate, NORGate, XORGate, XNORGate, "Interact", "Erase", "Wire"]
+const tools = [Button, Lightbulb, NANDGate, NOTGate, ORGate, ANDGate, NORGate, XORGate, XNORGate, Cross, "Interact", "Erase", "Wire"]
 export type Tool = typeof tools[number]
 export const Toolbox = ({ tool, setTool }: { tool: Tool, setTool: Dispatch<SetStateAction<Tool>> }) => {
     useEffect(() => {

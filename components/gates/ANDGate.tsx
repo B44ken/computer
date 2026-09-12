@@ -11,4 +11,4 @@ export const ANDGate = makeGate("AND", [2, 2], ANDGateView, {
     'Y': { 'type': 'out', 'coord': [2, 1] },
     'A': { 'type': 'in', 'coord': [0, 0] },
     'B': { 'type': 'in', 'coord': [0, 2] }
-}, (g) => g.set('Y', g.get('A') && g.get('B')))
+}, (g) => g.set('Y', Boolean(g.get('A')) && Boolean(g.get('B'))))
