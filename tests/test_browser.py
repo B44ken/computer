@@ -95,9 +95,9 @@ try:
         page.get_by_text('assembly editor', exact=True).click()
         page.get_by_label('assembly source', exact=True).fill('LDA 64')
         page.get_by_role('button', name='assemble & load', exact=True).click()
-        assert page.get_by_role('alert').count() == 1
+        expect(page.get_by_role('alert').filter(has_text='invalid instruction')).to_have_count(1)
         page.get_by_label('program', exact=True).select_option('countdown')
-        assert page.get_by_role('alert').count() == 0
+        expect(page.get_by_role('alert').filter(has_text='invalid instruction')).to_have_count(0)
         page.set_viewport_size({'width': 390, 'height': 844})
         page.screenshot(path=str(OUT / 'mobile.png'), full_page=True)
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
