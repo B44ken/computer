@@ -1,126 +1,152 @@
-import { Gate, Wire } from "../components/gates";
-import { Coord, coord } from "./coord";
+import { Gate } from "../components/gates/core/Gate"
+import { Wire } from "../components/gates/core/Wire"
+import { Coord, coord, isPointOnSegment } from "./coord"
 
 export type ComponentItem<T> = { item: T, coords: Coord }
-type Connection = { from: Gate, to: Gate, fromPin: string, toPin: string, via: Wire }
+export type PinRef = { item: Gate, pin: string }
+export type Connection = { from: Gate, to: Gate, fromPin: string, toPin: string, via: Wire }
+export type Net = { wires: Wire[], drivers: PinRef[], receivers: PinRef[] }
+export type Annotation = { text: string, x: number, y: number, width?: number, height?: number }
 
 export class Circuit {
     gates: ComponentItem<Gate>[] = []
     wires: ComponentItem<Wire>[] = []
     connections: Connection[] | null = null
-    unconnected: { item: Gate, pin: string }[] | null = null
+    unconnected: PinRef[] | null = null
+    nets: Net[] = []
+    annotations: Annotation[] = []
+    private outgoing = new Map<Gate, Connection[]>()
+    private pinNets = new Map<Gate, Map<string, Net>>()
     add(item: Gate | Wire, coords?: Coord | [number, number]) {
-        coords = coord(coords || [0, 0])
-        if (item instanceof Gate) this.gates.push({ item, coords })
-        else if (item instanceof Wire) this.wires.push({ item, coords })
+        const p = coord(coords || [0, 0])
+        if (item instanceof Gate) this.gates.push({ item, coords: p })
+        else this.wires.push({ item, coords: p })
         this.invalidate()
         return this
     }
-
     clone(): Circuit {
         const c = new Circuit()
-        c.gates = [...this.gates]
+        c.gates = this.gates.map(g => ({ ...g }))
         c.wires = [...this.wires]
-        c.invalidate()
+        c.connections = this.connections
+        c.unconnected = this.unconnected
+        c.nets = this.nets
+        c.outgoing = this.outgoing
+        c.pinNets = this.pinNets
+        c.annotations = this.annotations
         return c
     }
-
     remove(i: number, obj: Gate | Wire) {
         if (obj instanceof Gate) this.gates.splice(i, 1)
-        else if (obj instanceof Wire) this.wires.splice(i, 1)
+        else this.wires.splice(i, 1)
         this.invalidate()
     }
-
-    invalidate() { this.connections = this.unconnected = null }
-
-    private buildUnconnected() {
-        const driven = new Map<Gate, Set<string>>()
-        if (this.connections)
-            for (const conn of this.connections) {
-                if (!driven.has(conn.to)) driven.set(conn.to, new Set())
-                driven.get(conn.to)!.add(conn.toPin)
-            }
-
-        this.unconnected = []
-        for (const { item } of this.gates)
-            for (const name in item.pins)
-                if (item.pins[name].type == 'in')
-                    if (!driven.get(item)?.has(name))
-                        this.unconnected.push({ item, pin: name })
-    }
-
+    invalidate() { this.connections = this.unconnected = null; this.nets = []; this.pinNets = new Map(); this.outgoing = new Map() }
 
     buildConnections() {
-        const nets = new Map<Wire, Set<Wire>>()
-
-        for (const { item } of this.wires)
-            nets.set(item, new Set([item]))
-
-        const wires = this.wires.map(w => w.item)
-        for (let i = 0; i < wires.length; i++) {
-            for (let j = i + 1; j < wires.length; j++) {
-                const w1 = wires[i], w2 = wires[j]
-
-                const connected = w2.has(w1.path[0]) || w2.has(w1.path[w1.path.length - 1]) || w1.has(w2.path[0]) || w1.has(w2.path[w2.path.length - 1])
-                if (!connected) continue
-                const set1 = nets.get(w1)!, set2 = nets.get(w2)!
-                if (set1 != set2) {
-                    for (const w of set2) {
-                        set1.add(w)
-                        nets.set(w, set1)
+        // Same geometric rule as the editor: touching endpoints join wires;
+        // an interior/interior crossing alone does not. Index segment bounds
+        // rather than comparing every wire with every other wire.
+        const wires = this.wires.map(w => w.item), parent = wires.map((_, i) => i)
+        const find = (i: number): number => parent[i] === i ? i : parent[i] = find(parent[i])
+        const join = (a: number, b: number) => { parent[find(a)] = find(b) }
+        const buckets = new Map<string, { a: Coord, b: Coord, wire: number }[]>()
+        const bucketSize = 4, eps = 1e-8
+        wires.forEach((wire, i) => {
+            for (let j = 1; j < wire.path.length; j++) {
+                const a = wire.path[j - 1], b = wire.path[j], segment = { a, b, wire: i }
+                for (let x = Math.floor((Math.min(a.x, b.x) - eps) / bucketSize); x <= Math.floor((Math.max(a.x, b.x) + eps) / bucketSize); x++)
+                    for (let y = Math.floor((Math.min(a.y, b.y) - eps) / bucketSize); y <= Math.floor((Math.max(a.y, b.y) + eps) / bucketSize); y++) {
+                        const key = `${x},${y}`
+                        if (!buckets.has(key)) buckets.set(key, [])
+                        buckets.get(key)!.push(segment)
                     }
-                }
+            }
+        })
+        const at = (p: Coord) => [...new Set((buckets.get(`${Math.floor(p.x / bucketSize)},${Math.floor(p.y / bucketSize)}`) || [])
+            .filter(s => isPointOnSegment(p, s.a, s.b)).map(s => s.wire))]
+        wires.forEach((wire, i) => {
+            for (const p of [wire.path[0], wire.path[wire.path.length - 1]]) if (p)
+                for (const other of at(p)) join(i, other)
+        })
+        const pins = this.gates.flatMap(({ item, coords }) => Object.keys(item.pins).map(pin => ({ item, pin, on: at(item.pinPosition(pin, coords)) })))
+        for (const p of pins) for (const other of p.on) join(p.on[0], other)
+        const groups = new Map<number, Net>()
+        wires.forEach((w, i) => {
+            const root = find(i)
+            if (!groups.has(root)) groups.set(root, { wires: [], drivers: [], receivers: [] })
+            groups.get(root)!.wires.push(w)
+        })
+        this.pinNets = new Map()
+        for (const p of pins) {
+            if (!p.on.length) continue
+            const net = groups.get(find(p.on[0]))!
+            net[p.item.pins[p.pin].type === 'out' ? 'drivers' : 'receivers'].push({ item: p.item, pin: p.pin })
+            if (!this.pinNets.has(p.item)) this.pinNets.set(p.item, new Map())
+            this.pinNets.get(p.item)!.set(p.pin, net)
+        }
+        this.nets = [...groups.values()]
+        this.connections = []
+        this.outgoing = new Map()
+        const driven = new Map<Gate, Set<string>>()
+        for (const net of this.nets) {
+            if (net.drivers.length > 1) throw Error(`short: ${net.drivers.map(p => `${p.item.name}.${p.pin}`).join(' / ')}`)
+            for (const from of net.drivers) for (const to of net.receivers) {
+                const c = { from: from.item, fromPin: from.pin, to: to.item, toPin: to.pin, via: net.wires[0] }
+                this.connections.push(c)
+                if (!this.outgoing.has(from.item)) this.outgoing.set(from.item, [])
+                this.outgoing.get(from.item)!.push(c)
+                if (!driven.has(to.item)) driven.set(to.item, new Set())
+                driven.get(to.item)!.add(to.pin)
             }
         }
-
-        const uniqueNets = new Set<Set<Wire>>(nets.values())
-
-        const conns: Connection[] = []
-
-        for (const net of uniqueNets) {
-            const drivers: { item: Gate, pin: string }[] = []
-            const receivers: { item: Gate, pin: string }[] = []
-
-            for (const g of this.gates) {
-                for (const pName in g.item.pins) {
-                    const pin = g.item.pins[pName]
-                    const pinPos = pin.coord.add(g.coords)
-
-                    let onNet = [...net].some(w => w.has(pinPos))
-
-                    if (onNet) {
-                        if (pin.type == 'out') drivers.push({ item: g.item, pin: pName })
-                        else if (pin.type == 'in') receivers.push({ item: g.item, pin: pName })
-                    }
-                }
-            }
-
-            const representativeWire = net.values().next().value
-            for (const { item: from, pin: fromPin } of drivers)
-                for (const { item: to, pin: toPin } of receivers)
-                    conns.push({ from, to, fromPin, toPin, via: representativeWire })
-        }
-
-        this.connections = conns
+        this.unconnected = pins.filter(p => p.item.pins[p.pin].type === 'in' && !driven.get(p.item)?.has(p.pin)).map(({ item, pin }) => ({ item, pin }))
     }
-
-
-    update(maxIters = 20) {
+    netAt(item: Gate, pin: string) {
         if (!this.connections) this.buildConnections()
-        if (!this.unconnected) this.buildUnconnected()
-
-        for (const { item, pin } of this.unconnected)
-            item.set(pin, false)
-
-        let stable = false
-        for (let i = 0; i < maxIters; i++) {
-            stable = true
-
-            for (const { from, to, fromPin, toPin } of this.connections)
-                stable = !to.set(toPin, from.get(fromPin)) && stable
-
-            for (const { item } of this.gates)
-                stable = !item.update() && stable
+        return this.pinNets.get(item)?.get(pin)
+    }
+    trace(item: Gate, pin: string) {
+        const start = this.netAt(item, pin), nets = new Set<Net>(), wires = new Set<Wire>()
+        if (!start) return wires
+        const queue = [start]
+        for (let i = 0; i < queue.length; i++) {
+            const net = queue[i]
+            if (nets.has(net)) continue
+            nets.add(net)
+            for (const wire of net.wires) wires.add(wire)
+            for (const p of [...net.drivers, ...net.receivers]) if (p.item.type === 'Cross') {
+                const other = { TL: 'BR', BR: 'TL', TR: 'BL', BL: 'TR' }[p.pin]
+                const next = this.netAt(p.item, other)
+                if (next && !nets.has(next)) queue.push(next)
+            }
         }
+        return wires
+    }
+    update(maxIters = 1024) {
+        if (!this.connections) this.buildConnections()
+        let changed = false
+        for (const { item, pin } of this.unconnected!) changed = item.set(pin, false) || changed
+        const settle = (seeds: Gate[]) => {
+            const queue = [...seeds], pending = new Set(queue)
+            const budget = Math.max(1, this.gates.length) * maxIters
+            for (let i = 0; i < queue.length; i++) {
+                if (i > budget) throw Error('circuit did not settle (combinational oscillation)')
+                const gate = queue[i]; pending.delete(gate)
+                changed = gate.update() || changed
+                for (const c of this.outgoing.get(gate) || []) if (c.to.set(c.toPin, !!gate.get(c.fromPin))) {
+                    changed = true
+                    if (!pending.has(c.to)) { pending.add(c.to); queue.push(c.to) }
+                }
+            }
+        }
+        settle(this.gates.map(g => g.item))
+        const sequential = this.gates.map(g => g.item).filter(g => g.sequential)
+        for (const gate of sequential) gate.sample()
+        const committed = sequential.filter(gate => gate.commit())
+        if (committed.length) { changed = true; settle(committed) }
+        for (const net of this.nets) for (const wire of net.wires)
+            wire.voltage = !!net.drivers[0]?.item.get(net.drivers[0].pin)
+        return changed
     }
 }
