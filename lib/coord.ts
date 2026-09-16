@@ -15,6 +15,7 @@ export class Coord {
 export const coord = (a: [number, number] | Coord) => a instanceof Coord ? a : new Coord(a[0], a[1])
 
 export function isPointOnSegment(p: Coord, a: Coord, b: Coord): boolean {
+    if (a.eq(b)) return p.eq(a)
     const crossProduct = (p.y - a.y) * (b.x - a.x) - (p.x - a.x) * (b.y - a.y)
     if (Math.abs(crossProduct) > Number.EPSILON) return false
 
