@@ -11,14 +11,13 @@ export class DFFGate extends Gate {
     next = false
     constructor(name?: string, public initial = false) {
         super(name, [2, 2], {
-            D: { type: 'in', coord: [0, 1] }, Q: { type: 'out', coord: [2, 1] },
-            C: { type: 'in', coord: [1, 2] }
+            D: { type: 'in', coord: [0, 1] }, Q: { type: 'out', coord: [2, 1] }
         }, DFFGateView)
         this.set('Q', initial)
     }
-    // The computer's shared clock is a two-phase global tick. Settling gates
+    // The circuit's shared clock is a two-phase global tick. Settling gates
     // must never advance a flip-flop or expose a partially updated register.
     sample() { this.next = Boolean(this.get('D')) }
-    commit() { this.set('Q', this.next) }
+    commit() { return this.set('Q', this.next) }
     reset() { this.next = this.initial; this.set('Q', this.initial) }
 }

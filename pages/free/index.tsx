@@ -20,7 +20,7 @@ export default () => {
                 <div className="w-[100px]"></div> {/* spacer to balance back button */}
             </div>
             <Toolbox tool={tool} setTool={setTool} />
-            <div className="flex-grow mt-2 relative">
+            <div className="flex-1 min-h-0 mt-2 relative">
                 <CircuitBoard tool={tool} {...uc} />
             </div>
         </div>

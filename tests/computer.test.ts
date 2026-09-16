@@ -1,10 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
+import { Circuit } from '../lib/circuit'
+import { coord } from '../lib/coord'
+import { Wire, Cross, DFFGate, Button, Lightbulb, MemoryGate } from '../components/gates'
 import { Spec, Layout } from '../lib/computer/model'
 import { fromYosys } from '../lib/computer/yosys'
 import { manualComputer } from '../lib/computer/manual'
-import { GateComputer } from '../lib/computer/machine'
+import { loadComputer, snapshot } from '../lib/computer/load'
 import { audit } from '../lib/computer/audit'
 import { assemble, programs } from '../lib/computer/programs'
 import { factories, crossPart } from '../lib/computer/parts'
@@ -79,41 +82,114 @@ function referenceStep(state: { a: number, pc: number }, mem: Uint8Array) {
 for (const layout of layouts) {
     test(`${layout.spec.name}: physical geometry, primitive whitelist, single drivers, 14 dffs`, () => { assert.equal(audit(layout).errors, 0) })
     test(`${layout.spec.name}: six programs, compared with an independent model at EVERY edge`, () => {
-        const machine = new GateComputer(layout)
+        const { circuit, memory } = loadComputer(layout)
         for (const program of programs) {
-            const p = assemble(program.source), mem = p.image.slice(), state = { a: 0, pc: 0 }; machine.reset(p.image)
+            const p = assemble(program.source), mem = p.image.slice(), state = { a: 0, pc: 0 }; memory.load(p.image); circuit.reset()
             let cycles = 0
             while (!(state.pc === p.labels.halt && state.a === 0)) {
                 assert(cycles++ < 500, program.id)
-                const before = machine.snapshot()
+                const before = snapshot(memory)
                 assert.deepEqual([before.pc, before.a, before.inst, before.operand, before.we], [state.pc, state.a, mem[state.pc], mem[mem[state.pc] & 63], mem[state.pc] >> 6 === 1])
-                referenceStep(state, mem); machine.step()
-                assert.deepEqual([machine.snapshot().a, machine.snapshot().pc], [state.a, state.pc], program.id)
-                assert.deepEqual(machine.memory.bytes, mem, program.id)
+                referenceStep(state, mem); circuit.tick()
+                assert.deepEqual([snapshot(memory).a, snapshot(memory).pc], [state.a, state.pc], program.id)
+                assert.deepEqual(memory.bytes, mem, program.id)
             }
             for (const [addr, value] of Object.entries(program.expected)) assert.equal(mem[Number(addr)], value, program.id)
         }
     })
     test(`${layout.spec.name}: 4,096 random-memory cycles, wraparound and self-modifying stores`, () => {
-        const machine = new GateComputer(layout)
+        const { circuit, memory } = loadComputer(layout)
         let seed = 192837
         const rand = () => { seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5; return seed >>> 0 }
         for (let trial = 0; trial < 32; trial++) {
             const mem = Uint8Array.from({ length: 64 }, () => rand() & 255), state = { a: 0, pc: 0 }
-            machine.reset(mem)
+            memory.load(mem); circuit.reset()
             for (let i = 0; i < 128; i++) {
-                referenceStep(state, mem); machine.step()
-                assert.deepEqual([machine.snapshot().a, machine.snapshot().pc], [state.a, state.pc], `${trial}/${i}`)
-                assert.deepEqual(machine.memory.bytes, mem)
+                referenceStep(state, mem); circuit.tick()
+                assert.deepEqual([snapshot(memory).a, snapshot(memory).pc], [state.a, state.pc], `${trial}/${i}`)
+                assert.deepEqual(memory.bytes, mem)
             }
         }
     })
 }
 test('route corruption is not hidden by logical net IDs', () => {
     const layout = structuredClone(layouts[0]), a = layout.terminals.find(t => t.id === 'inst[6]')!, b = layout.terminals.find(t => t.id === 'inst[7]')!
-    layout.traces.push({ net: a.net, points: [[a.x, a.y], [b.x, a.y], [b.x, b.y]] })
-    assert.throws(() => new GateComputer(layout), /short/)
+    layout.traces.push({ net: a.net, points: [[a.x, a.y], [a.x + 1, a.y], [a.x + 1, b.y], [b.x, b.y]] })
+    assert.throws(() => loadComputer(layout), /short/)
 })
 test('assembler rejects invalid addresses, duplicate labels, overlapping images and bad bytes', () => {
     for (const source of ['LDA 64', 'LDA -1', 'x: .byte 0\nx: .byte 1', '.byte 1\n.org 0\n.byte 2', '.byte 256', 'LDA unknown']) assert.throws(() => assemble(source))
+})
+
+// Integration tests deliberately use only the native editor's public API.
+test('native Circuit loads the original classes, views and pin definitions without overrides', () => {
+    for (const layout of layouts) {
+        const { circuit, memory } = loadComputer(layout)
+        assert(circuit instanceof Circuit)
+        assert(memory instanceof MemoryGate)
+        assert.equal(circuit.gates.length, layout.cells.length + layout.bridges.length + 1)
+        assert.equal(circuit.wires.length, layout.traces.length)
+        for (const c of layout.cells) {
+            const g = circuit.gates.find(g => g.item.name === c.id)!.item, original = new factories[c.kind]()
+            assert.equal(Object.getPrototypeOf(g), Object.getPrototypeOf(original))
+            assert.equal(g.view, original.view)
+            assert.deepEqual(g.size, original.size)
+            for (const pin in original.pins) assert.deepEqual(g.pins[pin].coord, original.pins[pin].coord)
+        }
+        for (const b of layout.bridges) {
+            const g = circuit.gates.find(g => g.item.name === b.id)!.item, original = new Cross()
+            assert(g instanceof Cross); assert.equal(g.view, original.view); assert.deepEqual(g.size, original.size)
+            for (const pin in original.pins) assert.deepEqual(g.pins[pin].coord, original.pins[pin].coord)
+        }
+        assert(circuit.wires.every(w => w.item instanceof Wire))
+        assert.equal(circuit.unconnected!.length, 0)
+    }
+})
+
+test('ordinary Circuit.tick samples ALL DFFs before committing any, and Button changes only on click', () => {
+    const c = new Circuit(), button = new Button('input'), q1 = new DFFGate('q1'), q2 = new DFFGate('q2'), lamp = new Lightbulb('out')
+    c.add(button, [0, 0]).add(q1, [4, 0]).add(q2, [8, 0]).add(lamp, [12, 0])
+    for (const x of [2, 6, 10]) c.add(new Wire([[x, 1], [x + 2, 1]]))
+    c.update(); button.click(); c.update(); c.update()
+    assert.equal(button.get('Y'), true)
+    c.tick(); assert.deepEqual([q1.get('Q'), q2.get('Q'), lamp.get('A')], [true, false, false])
+    c.tick(); assert.deepEqual([q1.get('Q'), q2.get('Q'), lamp.get('A')], [true, true, true])
+    c.reset(); assert.deepEqual([q1.get('Q'), q2.get('Q')], [false, false])
+})
+
+test('moving a real DFF or erasing its real input wire breaks the CPU; logical net IDs cannot repair it', () => {
+    for (const layout of layouts) {
+        const { circuit, memory } = loadComputer(layout)
+        const bit0 = layout.spec.ports.find(p => p.name === 'out_mem')!.bits[0]
+        const cell = layout.cells.find(c => c.kind === 'DFF' && c.pins.Q === bit0)!
+        const g = circuit.gates.find(g => g.item.name === cell.id)!, pin = circuit.pinPosition(g, 'D')
+        const wires = circuit.wires.filter(w => w.item.has(pin))
+        assert(wires.length > 0)
+        for (const w of wires) circuit.remove(circuit.wires.indexOf(w), w.item)
+        memory.load(assemble(programs[0].source).image); circuit.reset(); circuit.tick()
+        assert.equal(snapshot(memory).a, 8, 'missing bit zero wire must turn LDA 9 into 8')
+        assert(circuit.unconnected!.some(p => p.item === g.item && p.pin === 'D'))
+        const restored = loadComputer(layout)
+        restored.memory.load(assemble(programs[0].source).image); restored.circuit.reset(); restored.circuit.tick()
+        assert.equal(snapshot(restored.memory).a, 9)
+        const moved = restored.circuit.gates.find(g => g.item.name === cell.id)!
+        moved.coords = coord([layout.width + 10, 0]); restored.circuit.invalidate(); restored.circuit.reset(); restored.circuit.tick()
+        assert.equal(snapshot(restored.memory).a, 8)
+    }
+})
+
+test('native half-adder remains correct with the existing editor junction convention', () => {
+    const c = new Circuit(), a = new Button('a'), b = new Button('b'), xor = new factories.XOR(), and = new factories.AND(), sum = new Lightbulb('sum'), carry = new Lightbulb('carry')
+    c.add(a, [1, 1]).add(b, [1, 4]).add(xor, [7, 2]).add(and, [7, 5]).add(sum, [10, 2]).add(carry, [10, 5])
+    for (const path of [[[3,2],[7,2]], [[3,5],[7,5]], [[5,2],[5,7],[7,7]], [[6,5],[6,4],[7,4]], [[9,3],[10,3]], [[9,6],[10,6]]]) c.add(new Wire(path as [number, number][]))
+    for (let i = 0; i < 4; i++) {
+        a.set('Y', Boolean(i & 1)); b.set('Y', Boolean(i & 2)); c.update()
+        assert.deepEqual(c.errors, [])
+        assert.equal(sum.get('A'), Boolean(i === 1 || i === 2))
+        assert.equal(carry.get('A'), i === 3)
+    }
+})
+
+test('zero-length segments do not connect unrelated points', () => {
+    assert.equal(new Wire([[0, 0], [0, 0]]).has(coord([2, 3])), false)
 })

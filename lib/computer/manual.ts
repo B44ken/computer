@@ -1,4 +1,4 @@
-import { Cell, Kind, Note, Placed, Spec, Terminal, bit, terminals } from './model'
+import { Cell, Kind, Note, Placed, Spec, bit, placeMemory } from './model'
 
 export function manualComputer() {
     const cells: Placed[] = [], notes: Note[] = []
@@ -62,15 +62,7 @@ export function manualComputer() {
         port('we', 1, 'output', ['we']), port('out_mem', 8, 'output', a),
         port('out_adr', 6, 'output', inst.slice(0, 6)), port('out_pc', 6, 'output', pc)
     ] }
-    const ts: Terminal[] = terminals(spec)
-    for (const t of ts) {
-        const i = Number(t.id.match(/\[(\d+)\]/)?.[1] || 0)
-        if (t.id.startsWith('inst[')) { t.x = i < 6 ? 84 : 5; t.y = i < 6 ? 32 + i * 9 : 8 + (i - 6) * 5 }
-        if (t.id.startsWith('in_mem')) { t.x = 10; t.y = 34 + i * 11 }
-        if (t.id.startsWith('out_mem')) { t.x = 72; t.y = 34 + i * 11 }
-        if (t.id.startsWith('out_pc')) { t.x = 146; t.y = 34 + i * 9 }
-        if (t.id.startsWith('out_adr')) { t.x = 84; t.y = 32 + i * 9 }
-        if (t.id.startsWith('we')) { t.x = 72; t.y = 15 }
-    }
-    return { spec, cells, terminals: ts, notes }
+    for (const c of cells) c.x += 26
+    for (const n of notes) n.x += 26
+    return { spec, cells, ...placeMemory(spec, 2, 26), notes }
 }

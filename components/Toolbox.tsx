@@ -1,16 +1,19 @@
 import { Dispatch, SetStateAction, useEffect } from "react"
-import { Button, Lightbulb, NANDGate, NOTGate, ORGate, ANDGate, NORGate, XORGate, XNORGate, Cross } from "./gates"
+import { Button, Lightbulb, NANDGate, NOTGate, ORGate, ANDGate, NORGate, XORGate, XNORGate, Cross, MUXGate, DFFGate, MemoryGate } from "./gates"
 
-const tools = [Button, Lightbulb, NANDGate, NOTGate, ORGate, ANDGate, NORGate, XORGate, XNORGate, Cross, "Interact", "Erase", "Wire"]
+const tools = [Button, Lightbulb, NANDGate, NOTGate, ORGate, ANDGate, NORGate, XORGate, XNORGate, Cross, MUXGate, DFFGate, MemoryGate, "Interact", "Erase", "Wire"]
 export type Tool = typeof tools[number]
 export const Toolbox = ({ tool, setTool }: { tool: Tool, setTool: Dispatch<SetStateAction<Tool>> }) => {
     useEffect(() => {
-        addEventListener("keydown", ({ key }) => {
-            const binds = { "Escape": "Interact", "Backspace": "Erase", "Enter": "Wire" }
+        const keydown = ({ key, target }: KeyboardEvent) => {
+            if (/INPUT|TEXTAREA|SELECT/.test((target as HTMLElement).tagName)) return
+            const binds = { Escape: 'Interact', Backspace: 'Erase', Enter: 'Wire' }
             if (key in binds) setTool(() => binds[key])
-            if ("123456789".includes(key)) setTool(() => tools[Number(key) - 1])
-        })
-    }, [])
+            if (/^[1-9]$/.test(key)) setTool(() => tools[Number(key) - 1])
+        }
+        addEventListener('keydown', keydown)
+        return () => removeEventListener('keydown', keydown)
+    }, [setTool])
 
     return <div className="flex justify-center flex-wrap select-none">
         {tools.map((t, i) =>

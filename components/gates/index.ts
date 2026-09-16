@@ -12,3 +12,7 @@ export * from "./NORGate"
 export * from "./XORGate"
 export * from "./XNORGate"
 export * from "./Cross"
+
+export * from "./MUXGate"
+export * from "./DFFGate"
+export * from "./MemoryGate"

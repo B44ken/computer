@@ -1,0 +1,94 @@
+name: regenerate native computer layouts
+on:
+  push:
+    branches: ['feature/gate-level-stupid-computer']
+    paths: ['.github/workflows/native-regenerate.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  regenerate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/gate-level-stupid-computer
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Verify transferred source matches locally tested files
+        run: |
+          sha256sum -c <<'SUMS'
+          6b45076acfbd055812c4e3c67e319947043358a875aedb4535e89f040a6a9c5f  tests/computer.test.ts
+          486af0c9c82e6fc7928852d133af6b0ab094dec4e5d6559e5e37c63e9125661d  tests/browser-entry.tsx
+          af7d313301d438f4a34cf1928b996c5e1b27567d10987ffc397bb1dbcd06113f  tests/test_browser.py
+          92c495ac418c8fdbb743b75edf6750e15147921e0584b765a8af90c1dc1fe539  components/CircuitBoard.tsx
+          4c05dd7b77b6e23cc58b7905b2991385fb551a3d84d4801843c9fce7c7309528  components/Toolbox.tsx
+          e5cfbceb6b79354b63e41dfd70ec8d74ceb656bafe1dfd92516601beadb7eb35  lib/overlap.ts
+          4f684b7b801fa06df1b3f2a3519cd5982c6ee0c973f07230df06cc06600567f8  lib/placement.ts
+          ebedbdb5d92569dcc3a4cb44940a12d91f8185c00546f0c468349709b6edc3e9  lib/coord.ts
+          a9bdb264ef5246594aedffa8b05a50ac113e7b2e4bbac8c7e39f3daa63be39ad  lib/circuit.ts
+          129ec5b8d0f4598a78d35ac70d80adb6a1efc48ddee56b59dce5ee7bc1d0d65d  scripts/build-computer.ts
+          72ed11d6c7ab042a2961ad4587fddbbb3f6b41390f271640d1e26f7a71281ed7  hooks/useCircuit.ts
+          f6f0f82b4d54d5d5da85b1ee334c3431793d9ba1447115b589f915a698d76bd4  pages/computer/computer.module.css
+          9f5cd899f6f0267e2d49443012e168c77f21c879da1dfb7039227ff72a40394d  pages/computer/index.tsx
+          c36c11e56586cec25efe91720bc2c0ecf7f34f686ccbd88d81a23bd16c70ae42  pages/free/index.tsx
+          278e881a3b17ce2c2c6d08b8f6ee1b7ccadd062044da2694c0c5b418e49bf957  lib/computer/parts.tsx
+          0eb3e5abbae6171016e6ce2199f48119b2e8f2ce2b62635d14dbbd8bed65ccd3  lib/computer/route.ts
+          b3f3edcfc9c48e54174dc3cd3e8651d858af4d236f44b8f2bbe7c43e1ae3f813  lib/computer/place.ts
+          7fb4505244cf44523ddac3d701b06de8a2035aed56cf4d3de1492ab475635e17  lib/computer/manual.ts
+          4ab082db9ec7be97cde1f1160eefe937a7dc76df266fa75b987b8f124de0f0cb  lib/computer/audit.ts
+          abf931b05bc051fa4c8b1d7035530bde65043e344a46b0caf1fb24c11b68b54a  lib/computer/load.ts
+          53935aa1870e6907eeaa30f2fd5109856af2dd444bdc9bd8e04718a02007974b  lib/computer/model.ts
+          a4cf0847a2b8ab29ca3ae298ac0f9345a24fd8f7cc87fb336344eeb003afd965  hardware/stupid/README.md
+          2be987ce45514e64c376241f92484f430e2dbf30bd47f8aeb7a993757dc4ab1c  components/gates/MemoryGate.tsx
+          008e544d86dd44d77408a0bbbbb907451f3c5c4eaa000338d9b582bf2217ea52  components/gates/Button.tsx
+          23567aa7dc1aecdc4cb624202c6f7f12e5bfac41859bdfc983353a8f70e57311  components/gates/DFFGate.tsx
+          ee1d1e1f4a67f0ffb014e684450d181a04847e3584b12c858f66298b60663ccf  components/gates/index.ts
+          a9f535303698a2525ff2ed54a1e38f7e155c8ac667745d0679586f0d6aac762e  components/gates/core/Gate.tsx
+          SUMS
+      - run: npm install
+      - run: sudo apt-get update -qq && sudo apt-get install -y yosys iverilog
+      - run: npm run layout:computer
+      - name: Verify regenerated layout hashes
+        run: |
+          sha256sum -c <<'SUMS'
+          76ea80bcdcf8d0ce197db73e8f2d4cb251d3b3d03ced4acd0a301220dffd501d  public/computer/manual.json
+          f7afb31218c68f1b5d8a681a95d3f3fd7434102884d69a0019f820b131fb54f5  public/computer/auto.metrics.json
+          127f8337910e73681f7e464a924424cdb6096999b66c798562b51126b87b4027  public/computer/auto.json
+          77f41a9966be04c2d499f2802f80d151b07a8b3c61a24e8a2e35e856fc154e4a  public/computer/manual.metrics.json
+          SUMS
+      - run: npm run test:computer && npm run test:rtl
+      - run: npm run build
+      - run: pip install playwright==1.57.0 && python -m playwright install --with-deps chromium
+      - name: Test real production pages and native editing
+        run: |
+          export CHROMIUM=$(python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path)')
+          npm run test:browser
+      - name: Commit verified generated layouts
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add public/computer/*.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'regenerate and verify layouts for native Circuit, original Cross and visible MemoryGate'
+            git push origin HEAD:feature/gate-level-stupid-computer
+          fi
+      - name: Record delivered hashes
+        if: always()
+        run: |
+          mkdir -p .test-artifacts/browser
+          git ls-files -z components hooks lib pages tests hardware scripts public/computer | xargs -0 sha256sum > .test-artifacts/browser/source.sha256
+          git rev-parse HEAD > .test-artifacts/browser/commit.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-computer-checks
+          path: |
+            .test-artifacts/browser/*
+            public/computer/*.metrics.json
+          retention-days: 14

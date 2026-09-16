@@ -3,7 +3,7 @@ import { fromYosys } from '../lib/computer/yosys'
 import { manualComputer } from '../lib/computer/manual'
 import { autoPlace } from '../lib/computer/place'
 import { route } from '../lib/computer/route'
-import { GateComputer } from '../lib/computer/machine'
+import { loadComputer, snapshot } from '../lib/computer/load'
 import { audit } from '../lib/computer/audit'
 import { programs, assemble } from '../lib/computer/programs'
 
@@ -21,7 +21,7 @@ async function main() {
         console.time(mode)
         let layout: ReturnType<typeof route> | undefined
         const priority: string[] = []
-        for (let attempt = 0; attempt < 8; attempt++) {
+        for (let attempt = 0; attempt < 16; attempt++) {
             try { layout = route(placed, 14, priority); break }
             catch (e) {
                 const failed = /unroutable (\S+) to/.exec(String(e))?.[1]
@@ -33,13 +33,13 @@ async function main() {
         }
         if (!layout) throw Error('routing attempts exhausted')
         const metrics = audit(layout)
-        const machine = new GateComputer(layout)
+        const { circuit, memory } = loadComputer(layout)
         for (const p of programs) {
-            const program = assemble(p.source); machine.reset(program.image)
+            const program = assemble(p.source); memory.load(program.image); circuit.reset()
             let count = 0
-            while (!(machine.snapshot().pc === program.labels.halt && machine.snapshot().a === 0) && count++ < 500) machine.step()
+            while (!(snapshot(memory).pc === program.labels.halt && snapshot(memory).a === 0) && count++ < 500) circuit.tick()
             if (count >= 500) throw Error(`${mode}/${p.id} did not finish`)
-            for (const [addr, value] of Object.entries(p.expected)) if (machine.memory.bytes[Number(addr)] !== value) throw Error(`${mode}/${p.id} bad memory[${addr}]`)
+            for (const [addr, value] of Object.entries(p.expected)) if (memory.bytes[Number(addr)] !== value) throw Error(`${mode}/${p.id} bad memory[${addr}]`)
             console.log(mode, p.id, 'passed', count)
         }
         fs.mkdirSync('public/computer', { recursive: true })

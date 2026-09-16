@@ -1,7 +1,8 @@
 import { Bridge, Layout, Note, Placed, Point, Spec, Terminal, Trace, key } from './model'
 import { technology } from './parts'
+import { MemoryGate } from '../../components/gates/MemoryGate'
 
-type Placement = { spec: Spec, cells: Placed[], terminals: Terminal[], notes: Note[] }
+type Placement = { spec: Spec, cells: Placed[], terminals: Terminal[], notes: Note[], memory: { x: number, y: number } }
 type Tree = { source: number, nodes: Set<number>, edges: Map<number, Set<number>> }
 
 class Heap {
@@ -33,6 +34,7 @@ export function route(p: Placement, margin = 14, priority: string[] = []): Layou
     const shift = (n: number) => n + margin
     const cells = p.cells.map(c => ({ ...c, x: shift(c.x), y: shift(c.y) }))
     const terminals = p.terminals.map(t => ({ ...t, x: shift(t.x), y: shift(t.y) }))
+    const memory = { x: shift(p.memory.x), y: shift(p.memory.y) }
     const notes = p.notes.map(n => ({ ...n, x: shift(n.x), y: shift(n.y) }))
     const W = Math.ceil(Math.max(...cells.map(c => c.x + technology[c.kind].width), ...terminals.map(t => t.x)) * 2 + margin * 2)
     const H = Math.ceil(Math.max(...cells.map(c => c.y + technology[c.kind].height), ...terminals.map(t => t.y)) * 2 + margin * 2)
@@ -66,9 +68,12 @@ export function route(p: Placement, margin = 14, priority: string[] = []): Layou
             stubs.push({ net: nid(c.pins[name]), path: [n, n + step, n + 2 * step] })
         }
     }
+    const memorySize = new MemoryGate().size
+    for (let y = memory.y * 2; y <= (memory.y + memorySize.y) * 2; y++)
+        for (let x = memory.x * 2; x <= (memory.x + memorySize.x) * 2; x++) blocked[y * W + x] = 1
     for (const t of terminals) {
         addPin(t.x, t.y, t.net, t.source)
-        const n = at(t.x, t.y), step = t.source ? 1 : -1
+        const n = at(t.x, t.y), step = t.x === memory.x ? -1 : 1
         stubs.push({ net: nid(t.net), path: [n, n + step, n + 2 * step] })
     }
     for (const [n, net] of pinNet) { blocked[n] = 0; owners[n] = net }
@@ -279,17 +284,30 @@ export function route(p: Placement, margin = 14, priority: string[] = []): Layou
             traces.push({ net: names[id], points })
         }
     }
+    // The native Cross has corner pins. Separate perimeter leads connect the
+    // cardinal tracks to those corners without crossing its diagonal conductors.
+    for (const b of bridges) {
+        const [x, y] = b.center
+        traces.push(
+            { net: b.hNet, points: [[x - 0.5, y], [x - 0.5, y - 0.5]] },
+            { net: b.hNet, points: [[x + 0.5, y], [x + 0.5, y + 0.5]] },
+            { net: b.vNet, points: [[x, y - 0.5], [x + 0.5, y - 0.5]] },
+            { net: b.vNet, points: [[x, y + 0.5], [x - 0.5, y + 0.5]] }
+        )
+    }
     const all: Point[] = [
+        [memory.x, memory.y], [memory.x + memorySize.x, memory.y + memorySize.y],
         ...cells.flatMap(c => [[c.x, c.y], [c.x + technology[c.kind].width, c.y + technology[c.kind].height]] as Point[]),
         ...terminals.map(t => [t.x, t.y] as Point), ...traces.flatMap(t => t.points),
         ...notes.flatMap(n => [[n.x, n.y - 1], [n.x + n.text.length * 0.46, n.y + 1]] as Point[])
     ]
     const minX = Math.floor(Math.min(...all.map(p => p[0]))) - 2, minY = Math.floor(Math.min(...all.map(p => p[1]))) - 2
     const width = Math.ceil(Math.max(...all.map(p => p[0]))) - minX + 2, height = Math.ceil(Math.max(...all.map(p => p[1]))) - minY + 2
+    memory.x -= minX; memory.y -= minY
     cells.forEach(c => { c.x -= minX; c.y -= minY })
     terminals.forEach(t => { t.x -= minX; t.y -= minY })
     notes.forEach(n => { n.x -= minX; n.y -= minY })
     traces.forEach(t => t.points.forEach(pt => { pt[0] -= minX; pt[1] -= minY }))
     bridges.forEach(b => { b.center[0] -= minX; b.center[1] -= minY })
-    return { ...p, cells, terminals, notes, bridges, traces, width, height }
+    return { ...p, cells, terminals, notes, bridges, traces, width, height, memory }
 }

@@ -8,4 +8,7 @@ export const ButtonView = (props: GateViewProps) => {
     </GateView>
 }
 
-export const Button = makeGate("Button", [2, 2], ButtonView, { 'Y': { 'type': 'out', 'coord': coord([2, 1]) } }, (g) => g.set('Y', !g.get('Y')))
+export class Button extends makeGate("Button", [2, 2], ButtonView, { 'Y': { 'type': 'out', 'coord': coord([2, 1]) } }, () => false) {
+    constructor(name?: string) { super(name); this.set('Y', false) }
+    click() { this.set('Y', !this.get('Y')) }
+}

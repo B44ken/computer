@@ -1,36 +1,31 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, SetStateAction } from 'react'
 import { Circuit } from '../lib/circuit'
 import { Coord } from '../lib/coord'
 import { isValidPlacement } from '../lib/overlap'
 
 export const useCircuit = (initialCircuit: Circuit | (() => Circuit)) => {
-    const [circuit, setCircuit] = useState<Circuit>(initialCircuit)
+    const [circuit, setState] = useState<Circuit>(initialCircuit)
+    const [revision, setRevision] = useState(0)
     const circuitRef = useRef(circuit)
-
-    useEffect(() => {
-        circuitRef.current = circuit
-    }, [circuit])
-
-    useEffect(() => {
-        const raf = requestAnimationFrame(() => {
-            circuitRef.current.update()
-            setCircuit(circuitRef.current.clone())
-        })
-        return () => cancelAnimationFrame(raf)
-    })
-
-    const interact = useCallback(() => {
-        circuitRef.current.update()
-        setCircuit(circuitRef.current.clone())
+    const setCircuit = useCallback((value: SetStateAction<Circuit>) => {
+        const next = typeof value === 'function' ? value(circuitRef.current) : value
+        circuitRef.current = next; setState(next)
     }, [])
-
-    const updateGate = useCallback((id: number, pos: Coord) => {
-        const item = circuitRef.current.gates[id].item
-        if (isValidPlacement(circuitRef.current, item, pos, id)) {
-            circuitRef.current.gates[id].coords = pos
-            setCircuit(circuitRef.current.clone())
+    useEffect(() => {
+        let frame: number
+        const update = () => {
+            if (circuit.update()) setRevision(n => n + 1)
+            frame = requestAnimationFrame(update)
         }
-    }, [])
-
-    return { circuit, interact, setCircuit, updateGate }
+        frame = requestAnimationFrame(update)
+        return () => cancelAnimationFrame(frame)
+    }, [circuit])
+    const interact = useCallback(() => { circuitRef.current.update(); setRevision(n => n + 1) }, [])
+    const updateGate = useCallback((id: number, pos: Coord) => {
+        const current = circuitRef.current, g = current.gates[id]
+        if (g && isValidPlacement(current, g.item, pos, id, g.rotation)) {
+            g.coords = pos; current.invalidate(); interact()
+        }
+    }, [interact])
+    return { circuit, revision, interact, setCircuit, updateGate }
 }

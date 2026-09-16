@@ -21,6 +21,9 @@ export class Gate {
     }
     update() { return false } // abstract
     click() { } // abstract
+    sample() { } // clocked primitives capture their inputs before any commits
+    commit(): boolean { return false }
+    reset() { }
     get(pin: string): boolean | undefined { return this.pins[pin]?.voltage }
     set(pin: string, value: boolean): boolean {
         const didChange = this.pins[pin]?.voltage != value

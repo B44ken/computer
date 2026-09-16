@@ -1,5 +1,5 @@
 import ELK from 'elkjs/lib/elk.bundled.js'
-import { Spec, terminals } from './model'
+import { Spec, terminals, placeMemory } from './model'
 import { technology } from './parts'
 
 export async function autoPlace(spec: Spec, seed = 1) {
@@ -45,17 +45,12 @@ export async function autoPlace(spec: Spec, seed = 1) {
     // Seed a compact fixed-pitch array from ELK's layered ordering, then
     // anneal swaps (including empty slots) to reduce physical net span.
     const order = [...graph.children!].filter(n => cells.some(c => c.id === n.id)).sort((a, b) => a.x! - b.x! || a.y! - b.y!).map(n => n.id)
-    const columns = 12, rows = Math.ceil(cells.length / columns), pitchX = 14, pitchY = 12
-    const places = Array.from({ length: columns * rows }, (_, i) => ({ x: 14 + Math.floor(i / rows) * pitchX, y: 10 + (i % rows) * pitchY }))
+    const columns = 10, rows = Math.ceil(cells.length / columns), pitchX = 12, pitchY = 10
+    const places = Array.from({ length: columns * rows }, (_, i) => ({ x: 30 + Math.floor(i / rows) * pitchX, y: 10 + (i % rows) * pitchY }))
     const occupants = places.map((_, i) => order[i] || '')
     const slot = new Map(occupants.filter(Boolean).map((id, i) => [id, i]))
-    const left = ts.filter(t => t.source), right = ts.filter(t => !t.source && !t.id.startsWith('out_adr'))
-    left.forEach((t, i) => { t.x = 2; t.y = 10 + i * 7 })
-    right.forEach((t, i) => { t.x = 24 + columns * pitchX; t.y = 10 + i * 7 })
-    for (const t of ts.filter(t => t.id.startsWith('out_adr'))) {
-        const source = ts.find(p => p.id === t.id.replace('out_adr', 'inst'))!
-        t.x = source.x; t.y = source.y
-    }
+    const memory = placeMemory(spec, 2, 10)
+    ts.splice(0, ts.length, ...memory.terminals)
     type End = { cell?: string, x: number, y: number }
     const nets = new Map<string, End[]>(), add = (net: string, p: End) => { if (!nets.has(net)) nets.set(net, []); nets.get(net)!.push(p) }
     for (const c of cells) for (const [name, pin] of Object.entries(technology[c.kind].pins)) add(c.pins[name], { cell: c.id, x: pin.x, y: pin.y })
@@ -89,5 +84,5 @@ export async function autoPlace(spec: Spec, seed = 1) {
     }
     bestOrder.forEach((id, i) => { if (id) slot.set(id, i) })
     const placed = cells.map(c => ({ ...c, ...places[slot.get(c.id)!] }))
-    return { spec, cells: placed, terminals: ts, notes: [{ x: 2, y: 5, text: 'yosys gates · elk-seeded placement + wire-length annealing · explicit Cross routing' }] }
+    return { spec, cells: placed, terminals: ts, memory: memory.memory, notes: [{ x: 2, y: 5, text: 'yosys gates · elk-seeded placement + wire-length annealing · explicit Cross routing' }] }
 }
