@@ -1,0 +1,39 @@
+name: gate-level computer
+on:
+  push:
+    branches: ['feature/gate-level-stupid-computer']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: npm install
+      - run: sudo apt-get update -qq && sudo apt-get install -y yosys iverilog
+      - run: npm run test:computer && npm run test:rtl
+      - run: npm run layout:computer && git diff --exit-code -- public/computer hardware/stupid/programs
+      - run: npm run build
+      - run: pip install playwright==1.57.0 && python -m playwright install --with-deps chromium
+      - name: Browser execution and visual snapshots
+        run: |
+          export CHROMIUM=$(python -c 'from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path)')
+          npm run test:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gate-computer-checks
+          path: |
+            .test-artifacts/browser/*.png
+            .test-artifacts/browser/browser-results.json
+            public/computer/*.metrics.json
+          retention-days: 14
