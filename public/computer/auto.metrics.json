@@ -1,11 +1,11 @@
 {
   "primitives": 116,
   "dffs": 14,
-  "crossovers": 397,
-  "width": 202,
-  "height": 128,
-  "area": 25856,
-  "wireLength": 7785.5,
-  "wireFragments": 1865,
+  "crossovers": 502,
+  "width": 149,
+  "height": 131,
+  "area": 19519,
+  "wireLength": 7544.5,
+  "wireFragments": 4088,
   "errors": 0
 }
