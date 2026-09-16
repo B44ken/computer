@@ -1,0 +1,22 @@
+name: gate computer
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test test/gate-computer.test.mjs
+      - run: node tools/build-computer.mjs
+      - run: sudo apt-get update && sudo apt-get install -y iverilog
+      - run: |
+          iverilog -g2012 -s tb -o build/gate-computer/test.vvp verilog/stupid.v verilog/memory.v build/gate-computer/gates.v test/gate-computer-tb.v
+          for f in build/gate-computer/program-*.hex; do
+            vvp build/gate-computer/test.vvp +program="$f" +cycles=256
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gate-computer
+          path: build/gate-computer/
