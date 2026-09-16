@@ -11,6 +11,9 @@ export default () => {
                 <Link href="/build" className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition">
                     Tutorial: How to Build a Computer
                 </Link>
+                <Link href="/computer" className="px-6 py-3 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition">
+                    Gate-level Computer
+                </Link>
             </div>
         </div>
     )

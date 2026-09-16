@@ -6,7 +6,13 @@
         "dev": "next",
         "build": "next build",
         "start": "next start",
-        "build:static": "next build && next out"
+        "build:static": "next build && next out",
+        "test:computer": "tsx --test tests/computer.test.ts",
+        "layout:computer": "tsx scripts/build-computer.ts",
+        "build:computer": "bash hardware/stupid/build.sh && npm run layout:computer",
+        "test:rtl": "python3 tests/test_rtl.py",
+        "test:browser": "python3 tests/test_browser.py",
+        "assemble": "tsx scripts/assemble.ts"
     },
     "devDependencies": {
         "@types/node": "25.0.3",
@@ -16,7 +22,9 @@
         "react": "^19.2.3",
         "react-dom": "^19.2.3",
         "tailwindcss": "^4.1.18",
-        "typescript": "5.9.3"
+        "typescript": "5.9.3",
+        "elkjs": "0.12.0",
+        "tsx": "4.23.13"
     },
     "dependencies": {
         "@tailwindcss/postcss": "^4.1.18",
