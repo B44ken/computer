@@ -1,0 +1,29 @@
+name: course workspace
+on:
+  push:
+    branches: ['feature/build-a-computer-course']
+    paths: ['.github/workflows/course-workspace.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: |
+          git archive --format=tar HEAD > /tmp/course-source.tar
+          tar -czf /tmp/course-deps.tgz node_modules
+          cp package-lock.json /tmp/course-package-lock.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: course-workspace
+          path: |
+            /tmp/course-source.tar
+            /tmp/course-deps.tgz
+            /tmp/course-package-lock.json
+          retention-days: 3
