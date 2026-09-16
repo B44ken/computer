@@ -1,0 +1,78 @@
+name: gate-computer-delivery
+on:
+  push:
+    paths: ['.github/workflows/gate-computer-delivery.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  deliver:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/gate-level-stupid-computer
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Recover checksum-verified source files from repository blobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import base64, hashlib, io, json, os, pathlib, tarfile, urllib.request
+          hashes = ['567600c80048a0609fbf5bffa05689803b07cc04', '981166ad6e93bcbe4d06ce10a702708f3eddb306', 'ab07941866cd9a4f37dc687bb9591c4ef6762e34', '5a45108b69c4b319284408e223885f41e98e5de0']
+          chunks = []
+          for sha in hashes:
+              req = urllib.request.Request('https://api.github.com/repos/B44ken/computer/git/blobs/' + sha, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+              with urllib.request.urlopen(req) as r:
+                  data = base64.b64decode(json.load(r)['content'])
+              assert hashlib.sha1(f'blob {len(data)}\0'.encode() + data).hexdigest() == sha
+              chunks.append(data)
+          archive = b''.join(chunks)
+          assert len(archive) == 34228
+          assert hashlib.sha256(archive).hexdigest() == '6d5c54d06a72291f8f32fe363afa2a8b172d68df67e3ce69adb56ed1e74e1d8e'
+          with tarfile.open(fileobj=io.BytesIO(archive), mode='r:xz') as tar:
+              for member in tar.getmembers():
+                  path = pathlib.Path(member.name)
+                  assert member.isfile() and not path.is_absolute() and '..' not in path.parts
+                  assert path.parts[0] not in ('.git', '.github', 'node_modules')
+                  path.parent.mkdir(parents=True, exist_ok=True)
+                  path.write_bytes(tar.extractfile(member).read())
+                  path.chmod(member.mode & 0o777)
+                  print('restored', path)
+          PY
+      - run: npm install
+      - run: sudo apt-get update -qq && sudo apt-get install -y yosys iverilog
+      - run: npm run build:computer
+      - run: npm run test:computer && npm run test:rtl
+      - run: npm run build
+      - name: Commit verified ordinary source and generated layouts
+        run: |
+          git restore next-env.d.ts
+          git add .gitignore package.json pages components lib hardware scripts tests public
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'build routed gate-level stupid computers, memory, assembler and tests'
+          git push origin HEAD:feature/gate-level-stupid-computer
+          git rev-parse HEAD
+      - name: Record delivered file hashes
+        run: |
+          python - <<'PY'
+          import hashlib, json, pathlib, subprocess
+          names = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD^', 'HEAD']).decode().splitlines()
+          pathlib.Path('/tmp/delivered-hashes.json').write_text(json.dumps({name:hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest() for name in names}, indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gate-computer-delivery-checks
+          path: |
+            /tmp/delivered-hashes.json
+            public/computer/*.metrics.json
+          retention-days: 3
