@@ -11,18 +11,12 @@ export class Coord {
     toString() { return `(${this.x}, ${this.y})` }
 }
 
-
 export const coord = (a: [number, number] | Coord) => a instanceof Coord ? a : new Coord(a[0], a[1])
 
 export function isPointOnSegment(p: Coord, a: Coord, b: Coord): boolean {
-    const crossProduct = (p.y - a.y) * (b.x - a.x) - (p.x - a.x) * (b.y - a.y)
-    if (Math.abs(crossProduct) > Number.EPSILON) return false
-
-    const dotProduct = (p.x - a.x) * (b.x - a.x) + (p.y - a.y) * (b.y - a.y)
-    if (dotProduct < 0) return false
-
-    const squaredLength = (b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)
-    if (dotProduct > squaredLength) return false
-
-    return true
+    const dx = b.x - a.x, dy = b.y - a.y, length2 = dx * dx + dy * dy
+    if (length2 === 0) return p.sub(a).len() < 1e-8
+    if (Math.abs((p.y - a.y) * dx - (p.x - a.x) * dy) > 1e-8 * Math.sqrt(length2)) return false
+    const dot = (p.x - a.x) * dx + (p.y - a.y) * dy
+    return dot >= -1e-8 && dot <= length2 + 1e-8
 }

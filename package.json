@@ -6,7 +6,9 @@
         "dev": "next",
         "build": "next build",
         "start": "next start",
-        "build:static": "next build && next out"
+        "build:static": "next build && next out",
+        "test:computer": "node -r ./tools/register-ts.cjs --test test/native-computer.test.ts",
+        "export:computer": "node tools/build-computer.cjs"
     },
     "devDependencies": {
         "@types/node": "25.0.3",
