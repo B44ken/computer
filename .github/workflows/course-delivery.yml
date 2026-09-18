@@ -1,0 +1,76 @@
+name: deliver and verify computer course
+on:
+  push:
+    branches: ['feature/build-a-computer-course']
+    paths: ['.github/workflows/course-delivery.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  course:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/build-a-computer-course
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Restore checksum-verified course source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python - <<'PY'
+          import base64, hashlib, json, lzma, os, pathlib, subprocess, urllib.request
+          # These immutable Git blobs contain only transferred UTF-8 source.
+          ids = ['9aae457fdbc9a786c19f61e7f2dc4d8ad3f9c143', '4eaef703f1188caade24690eb253a5bd122ebfcc', 'c7fea6cfa1fafc4c42bcadb1a08a3939d86defb2', 'd0d666e2871cd4c176e416bfe12f0348b2425add']
+          chunks = []
+          for i, sha in enumerate(ids):
+              request = urllib.request.Request(f'https://api.github.com/repos/B44ken/computer/git/blobs/{sha}', headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+              with urllib.request.urlopen(request) as response: blob = json.load(response)
+              data = bytearray(base64.b64decode(blob['content']))
+              assert hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == sha
+              if i == 3:
+                  # Correct two bytes affected by a base64 transcription typo.
+                  assert data[675:677] == bytes([206, 119])
+                  data[675:677] = bytes([204, 215])
+                  assert hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == '0e5cd32cd2d53a3d243547e8d3a29d65f90cd74d'
+              chunks.append(data)
+          compressed = b''.join(chunks)
+          assert hashlib.sha256(compressed).hexdigest() == 'ce7de960e4e8a0298cdf7a296cfe090a9dc3e670a117a21b5aead2147fde731a'
+          package = json.loads(lzma.decompress(compressed))
+          assert len(package['files']) == 36
+          for name, content in package['files'].items():
+              path = pathlib.Path(name)
+              assert not path.is_absolute() and '..' not in path.parts and not name.startswith('.git')
+              data = content.encode('utf-8')
+              assert hashlib.sha256(data).hexdigest() == package['sha256'][name], name
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_bytes(data)
+              print('verified', name)
+          subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
+          subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
+          subprocess.run(['git', 'add', '--', *package['files']], check=True)
+          if subprocess.run(['git', 'diff', '--cached', '--quiet']).returncode:
+              subprocess.run(['git', 'commit', '-m', 'add thirteen interactive computer lessons using the native circuit simulator'], check=True)
+              subprocess.run(['git', 'push', 'origin', 'HEAD:feature/build-a-computer-course'], check=True)
+          pathlib.Path('.test-artifacts/course-browser').mkdir(parents=True, exist_ok=True)
+          pathlib.Path('.test-artifacts/course-browser/source.sha256').write_text('\n'.join(f'{h}  {n}' for n,h in package['sha256'].items()) + '\n')
+          pathlib.Path('.test-artifacts/course-browser/source-commit.txt').write_text(subprocess.check_output(['git','rev-parse','HEAD'], text=True))
+          PY
+      - run: npm install
+      - run: npm run test:course
+      - run: npm run build -- --webpack
+      - run: pip install playwright==1.57.0 && python -m playwright install --with-deps chromium
+      - name: Exercise actual production pages, wiring, progress and touch
+        run: npm run test:course:browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: course-browser-evidence
+          path: .test-artifacts/course-browser/
+          retention-days: 14
