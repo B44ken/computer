@@ -15,7 +15,7 @@ export const SVGGate = ({ gate, coords, scale, origin, selected, onMouseUp, onMo
     coords = coords.sub(origin)
     const cx = gate.size.x * scale / 2, cy = gate.size.y * scale / 2
     return <g data-gate-type={gate.type} data-gate-name={gate.name} transform={`translate(${coords.x * scale}, ${coords.y * scale})`}
-        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onMouseUp={onMouseUp} onMouseDown={onMouseDown}>
+        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)} onPointerUp={onMouseUp} onPointerDown={onMouseDown}>
         <title>{gate.name || gate.type}</title>
         <g transform={`translate(${cx},${cy}) rotate(${gate.rotation}) scale(${gate.transformScale}) translate(${-cx},${-cy})`}>
             {selected && <rect x={-scale*.25} y={-scale*.25} width={(gate.size.x+.5)*scale} height={(gate.size.y+.5)*scale} rx={scale*.2} fill="#f0e8ff" stroke="#9b77c8" strokeWidth={scale*.07} />}
@@ -28,7 +28,7 @@ export const SVGGate = ({ gate, coords, scale, origin, selected, onMouseUp, onMo
 export const SVGWire = ({ wire, scale, origin, selected, dim, onMouseDown }: SVGWireProps) => {
     const points = wire.path.map(c => c.sub(origin)).map(c => `${c.x},${c.y}`).join(' ')
     return <g transform={`scale(${scale})`} opacity={dim ? .14 : 1}>
-        <polyline data-wire="true" points={points} fill="none" stroke={selected ? '#9861cb' : wire.voltage ? '#58a76b' : '#aaa'} strokeWidth={selected ? .22 : .11} onMouseDown={onMouseDown}>
+        <polyline data-wire="true" points={points} fill="none" stroke={selected ? '#9861cb' : wire.voltage ? '#58a76b' : '#aaa'} strokeWidth={selected ? .22 : .11} onPointerDown={onMouseDown}>
             <title>{wire.voltage ? '1' : '0'}</title>
         </polyline>
     </g>
@@ -43,16 +43,19 @@ export const CircuitBoard = ({ tool, circuit, updateGate, scale = 48, fit, selec
     const [drag, setDrag] = useState<{ i?: number, start: Coord, offset?: Coord, pan?: boolean, preview?: Coord, screen: [number,number] } | null>(null)
     const [sketch, setSketch] = useState<Coord[]>([])
     useEffect(() => {
-        if (!fit || !ref.current) return
+        const svg = ref.current
+        if (!fit || !svg) return
+        let active = true
         const frame = () => {
-            const { width, height } = ref.current!.getBoundingClientRect()
+            if (!active || !svg.isConnected) return
+            const { width, height } = svg.getBoundingClientRect()
             if (!width || !height) return
             const s = Math.min(width / fit.width, height / fit.height)
             setView({ scale: s, origin: coord([fit.x - (width/s-fit.width)/2, fit.y-(height/s-fit.height)/2]) })
         }
         frame()
-        const observer = new ResizeObserver(frame); observer.observe(ref.current)
-        return () => observer.disconnect()
+        const observer = new ResizeObserver(frame); observer.observe(svg)
+        return () => { active = false; observer.disconnect() }
     }, [fit])
     useEffect(() => {
         const svg = ref.current!
@@ -85,11 +88,14 @@ export const CircuitBoard = ({ tool, circuit, updateGate, scale = 48, fit, selec
     const gateMouseDown = (g: {item: Gate,coords: Coord}, i: number, e: any) => {
         if (tool === 'Wire' || typeof tool === 'function') return
         e.stopPropagation()
+        ref.current?.setPointerCapture(e.pointerId)
         if (tool === 'Inspect') selectGate(g.item, e)
         else if (tool === 'Erase') { circuit.remove(i, g.item); onChange?.() }
         else setDrag({i,start:g.coords,offset:point(e).sub(g.coords),screen:[e.clientX,e.clientY]})
     }
     const mouseDown = (e: any) => {
+        e.preventDefault()
+        ref.current?.setPointerCapture(e.pointerId)
         const p = snap(point(e))
         if (typeof tool === 'function') { circuit.add(new tool(),p); onChange?.(); return }
         if (tool === 'Wire') setSketch([p,p])
@@ -112,8 +118,8 @@ export const CircuitBoard = ({ tool, circuit, updateGate, scale = 48, fit, selec
     }
     const highlighted = selection ? circuit.trace(selection.gate,selection.pin) : null
     const dots = {backgroundImage:'radial-gradient(#ececec 1px, #fff 1px)',backgroundSize:`${view.scale}px ${view.scale}px`,backgroundPosition:`${-view.origin.x*view.scale}px ${-view.origin.y*view.scale}px`}
-    return <svg ref={ref} data-testid="circuit-board" className="border-2 w-full h-7/8" style={{...dots,width:'100%',height:'100%',display:'block',touchAction:'none'}}
-        onMouseMove={mouseMove} onMouseUp={mouseUp} onMouseDown={mouseDown} onMouseLeave={()=>{setSketch([]);setDrag(null)}}>
+    return <svg ref={ref} data-testid="circuit-board" data-origin-x={view.origin.x} data-origin-y={view.origin.y} data-scale={view.scale} className="border-2 w-full h-7/8" style={{...dots,width:'100%',height:'100%',display:'block',touchAction:'none'}}
+        onPointerMove={mouseMove} onPointerUp={mouseUp} onPointerDown={mouseDown} onPointerCancel={()=>{setSketch([]);setDrag(null)}}>
         {circuit.annotations.map((a,i)=><g key={i} pointerEvents="none">
             {a.width && a.height && <rect x={(a.x-view.origin.x)*view.scale} y={(a.y+1-view.origin.y)*view.scale} width={a.width*view.scale} height={a.height*view.scale} rx={view.scale*.4} fill="none" stroke="#e0e0e0" strokeWidth={view.scale*.08}/>}
             <text x={(a.x-view.origin.x)*view.scale} y={(a.y-view.origin.y)*view.scale} fontSize={view.scale*1.15} fill="#777">{a.text}</text>
