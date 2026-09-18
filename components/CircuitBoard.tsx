@@ -43,16 +43,19 @@ export const CircuitBoard = ({ tool, circuit, updateGate, scale = 48, fit, selec
     const [drag, setDrag] = useState<{ i?: number, start: Coord, offset?: Coord, pan?: boolean, preview?: Coord, screen: [number,number] } | null>(null)
     const [sketch, setSketch] = useState<Coord[]>([])
     useEffect(() => {
-        if (!fit || !ref.current) return
+        const svg = ref.current
+        if (!fit || !svg) return
+        let active = true
         const frame = () => {
-            const { width, height } = ref.current!.getBoundingClientRect()
+            if (!active || !svg.isConnected) return
+            const { width, height } = svg.getBoundingClientRect()
             if (!width || !height) return
             const s = Math.min(width / fit.width, height / fit.height)
             setView({ scale: s, origin: coord([fit.x - (width/s-fit.width)/2, fit.y-(height/s-fit.height)/2]) })
         }
         frame()
-        const observer = new ResizeObserver(frame); observer.observe(ref.current)
-        return () => observer.disconnect()
+        const observer = new ResizeObserver(frame); observer.observe(svg)
+        return () => { active = false; observer.disconnect() }
     }, [fit])
     useEffect(() => {
         const svg = ref.current!

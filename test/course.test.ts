@@ -7,7 +7,7 @@ import { labIds,makeLab,brokenLab,checkLab,auditLab,pulse } from '../lib/course/
 import { switchCircuit,switchModes,resolveSwitches } from '../lib/course/transistors'
 import { serializeCircuit,deserializeCircuit } from '../lib/serialization'
 import { Circuit } from '../lib/circuit'
-import { Wire,Gate,DFFGate,Memory } from '../components/gates'
+import { Wire,Gate,DFFGate,Memory,NANDGate } from '../components/gates'
 import { checkProgram,doubleSolution,doubleStarter,testInputs } from '../lib/course/program-check'
 import { buildComputer,word } from '../lib/computer'
 
@@ -76,4 +76,17 @@ test('truth-table enumeration preserves the actual editor circuit and its select
     assert.equal(JSON.stringify(serializeCircuit(c)),before)
     assert.equal(rows.length,4)
     assert.deepEqual(rows.map((r:any)=>r.output),[[false,false],[true,false],[true,false],[false,true]])
+})
+
+
+test('server-rendered native gate pin titles contain one stable text value',()=>{
+    const React=require('react'), {renderToString}=require('react-dom/server')
+    const gate=new NANDGate('nand'), messages:string[]=[]
+    const error=console.error;console.error=(...args:any[])=>messages.push(args.join(' '))
+    try {
+        const html=renderToString(React.createElement('svg',null,React.createElement(gate.view,{gate,width:96,height:96,hover:false})))
+        assert.match(html,/<title>A: 0<\/title>/)
+        assert.match(html,/<title>Y: 0<\/title>/)
+        assert.deepEqual(messages,[])
+    } finally {console.error=error}
 })
