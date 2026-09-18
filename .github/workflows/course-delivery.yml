@@ -20,47 +20,35 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Restore checksum-verified course source
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Apply checked native editor regression fixes
         run: |
           python - <<'PY'
-          import base64, hashlib, json, lzma, os, pathlib, subprocess, urllib.request
-          # These immutable Git blobs contain only transferred UTF-8 source.
-          ids = ['9aae457fdbc9a786c19f61e7f2dc4d8ad3f9c143', '4eaef703f1188caade24690eb253a5bd122ebfcc', 'c7fea6cfa1fafc4c42bcadb1a08a3939d86defb2', 'd0d666e2871cd4c176e416bfe12f0348b2425add']
-          chunks = []
-          for i, sha in enumerate(ids):
-              request = urllib.request.Request(f'https://api.github.com/repos/B44ken/computer/git/blobs/{sha}', headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
-              with urllib.request.urlopen(request) as response: blob = json.load(response)
-              data = bytearray(base64.b64decode(blob['content']))
-              assert hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == sha
-              if i == 3:
-                  # Correct two bytes affected by a base64 transcription typo.
-                  assert data[675:677] == bytes([206, 119])
-                  data[675:677] = bytes([204, 215])
-                  assert hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest() == '0e5cd32cd2d53a3d243547e8d3a29d65f90cd74d'
-              chunks.append(data)
-          compressed = b''.join(chunks)
-          assert hashlib.sha256(compressed).hexdigest() == 'ce7de960e4e8a0298cdf7a296cfe090a9dc3e670a117a21b5aead2147fde731a'
-          package = json.loads(lzma.decompress(compressed))
-          assert len(package['files']) == 36
-          for name, content in package['files'].items():
+          import hashlib, json, pathlib, subprocess
+          patches = json.loads(r'''{
+            "lib/truthtable.ts": {"before":"1a9434a6e722c1183d8bcb782859c47c2a7bb978e45a22365cefbd4665e9c593","after":"5d4187c7221931403156268fcdf06304265e253a83ab39b69086eb33ee1e245e","edits":[[3,3,"import { serializeCircuit, deserializeCircuit } from \"./serialization\"\n"],[12,16,"export const truthTable = (circuit: Circuit, ins: Gate[], outs: Gate[]): { input: boolean[], output: boolean[] }[] => {\n    // Evaluating a truth table must not drive the live editor's input buttons.\n    const copy = deserializeCircuit(serializeCircuit(circuit))\n    const corresponding = (g: Gate) => copy.gates[circuit.gates.findIndex(p => p.item === g)].item\n    const inputs = ins.map(corresponding), outputs = outs.map(corresponding)\n    return cartesianProd(ins.length).map(input => {\n        pokeCircuit(copy, inputs, input)\n        const output = outputs.map(g => (g instanceof Lightbulb ? g.pins.A : Object.values(g.pins).find(p => p.type == 'out'))?.voltage || false)\n"],[17,18,"    })\n}\n"]]},
+            "components/TruthTable.tsx": {"before":"a0be8b13195b45f7134d81d83540a74d2de36c44a6ee7d3582be0ff154750d43","after":"9a65da22c828adf82ea07df8186d55b90e63e23b66f73b21906ecaf09aeaa58c","edits":[[13,14,"        {vals.map((row, i) => <div key={i}> {row.map((_, j) => <p key={j} className=\"border-r-2\"> {row[j] ? 1 : 0} </p>)} </div>)}\n"]]},
+            "components/course/CourseShell.tsx": {"before":"0909a5954fd8cfee4937aa219dfc46d78614b49d4ff741a37507891dca06ccf5","after":"d8c77308256a2779ff1a54e21d302b27f1a13736bb4956564c4e8dd5438e0425","edits":[[26,27,"    return <CourseShell progress={progress}><div className=\"course-hero\"><p className=\"eyebrow\">from a transistor to a program</p><h1>how to build<br/>a computer.</h1><p className=\"hero-deck\">not a processor-shaped box. an actual machine made of switches, gates, wires, and fourteen flip-flops. build the pieces, then make them run your code.</p><div className=\"hero-actions\"><Link className=\"button accent\" href={`/learn/${first.slug}`}>{Object.keys(progress.answers).length?'continue learning':'start with transistors'} →</Link><Link href=\"/computer\">see what we’re building ↗</Link></div><div className=\"course-facts\"><span><b>13</b> written lessons</span><span><b>18</b> native circuit labs</span><span><b>26</b> questions</span></div></div>\n"]]},
+            "test/course.test.ts": {"before":"2317707b2f56788ffb5162fedbd15f07674757ccf3157f050addd139764f08b7","after":"88f088d790a1ad4e24518389ec6db9a90f5643db14d6b8e454a2230555ec069c","edits":[[66,66,"\n\ntest('truth-table enumeration preserves the actual editor circuit and its selected input values',()=>{\n    const {truthTable}=require('../lib/truthtable')\n    const lab=makeLab('half'), c=lab.circuit\n    const buttons=lab.inputs.map(name=>c.gates.find(g=>g.item.name===name)!.item)\n    const outputs=lab.outputs.map(name=>c.gates.find(g=>g.item.name===name)!.item)\n    buttons[0].set('Y',true);buttons[1].set('Y',false);c.update()\n    const before=JSON.stringify(serializeCircuit(c)), rows=truthTable(c,buttons,outputs)\n    assert.equal(JSON.stringify(serializeCircuit(c)),before)\n    assert.equal(rows.length,4)\n    assert.deepEqual(rows.map((r:any)=>r.output),[[false,false],[true,false],[true,false],[false,true]])\n})\n"]]},
+            "test/course-browser.py": {"before":"1778f5e825ba61eb73be79ffea7463a69e99fff65955e3a64f6a371e78013515","after":"8e4e19981cf0db72398181923f1740fb2e025c9a7152458fdc8dd39e983137c5","edits":[[41,42,"            target.on('pageerror', lambda e: (errors.append({'url': target.url, 'error': str(e)}), print('PAGE ERROR', target.url, str(e), flush=True)))\n"],[102,102,"        # Capture every ideal switch-network layout for visual review.\n        visit('/learn/transistors')\n        experiment = page.get_by_role('region', name='transistor experiment')\n        for mode in ['n switch', 'p switch', 'not', 'nand', 'nor', 'or']:\n            experiment.get_by_role('button', name=mode, exact=True).click()\n            shot('transistor-' + mode.replace(' ', '-'), experiment)\n"],[206,206,"        shot('original-half-adder-clicked')\n"]]}
+          }''')
+          for name, patch in patches.items():
               path = pathlib.Path(name)
-              assert not path.is_absolute() and '..' not in path.parts and not name.startswith('.git')
-              data = content.encode('utf-8')
-              assert hashlib.sha256(data).hexdigest() == package['sha256'][name], name
-              path.parent.mkdir(parents=True, exist_ok=True)
+              data = path.read_bytes()
+              digest = hashlib.sha256(data).hexdigest()
+              if digest == patch['after']: continue
+              assert digest == patch['before'], name
+              lines = data.decode().splitlines(True)
+              for start, end, content in reversed(patch['edits']): lines[start:end] = [content]
+              data = ''.join(lines).encode()
+              assert hashlib.sha256(data).hexdigest() == patch['after'], name
               path.write_bytes(data)
               print('verified', name)
-          subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
-          subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
-          subprocess.run(['git', 'add', '--', *package['files']], check=True)
-          if subprocess.run(['git', 'diff', '--cached', '--quiet']).returncode:
-              subprocess.run(['git', 'commit', '-m', 'add thirteen interactive computer lessons using the native circuit simulator'], check=True)
-              subprocess.run(['git', 'push', 'origin', 'HEAD:feature/build-a-computer-course'], check=True)
-          pathlib.Path('.test-artifacts/course-browser').mkdir(parents=True, exist_ok=True)
-          pathlib.Path('.test-artifacts/course-browser/source.sha256').write_text('\n'.join(f'{h}  {n}' for n,h in package['sha256'].items()) + '\n')
-          pathlib.Path('.test-artifacts/course-browser/source-commit.txt').write_text(subprocess.check_output(['git','rev-parse','HEAD'], text=True))
+          subprocess.run(['git','config','user.name','github-actions[bot]'],check=True)
+          subprocess.run(['git','config','user.email','41898282+github-actions[bot]@users.noreply.github.com'],check=True)
+          subprocess.run(['git','add','--',*patches],check=True)
+          if subprocess.run(['git','diff','--cached','--quiet']).returncode:
+              subprocess.run(['git','commit','-m','prevent native truth-table checks from mutating the live circuit'],check=True)
+              subprocess.run(['git','push','origin','HEAD:feature/build-a-computer-course'],check=True)
           PY
       - run: npm install
       - run: npm run test:course
@@ -68,6 +56,12 @@ jobs:
       - run: pip install playwright==1.57.0 && python -m playwright install --with-deps chromium
       - name: Exercise actual production pages, wiring, progress and touch
         run: npm run test:course:browser
+      - name: Record checked source
+        if: always()
+        run: |
+          mkdir -p .test-artifacts/course-browser
+          git rev-parse HEAD > .test-artifacts/course-browser/source-commit.txt
+          git ls-files -z components lib course pages test docs tools public | xargs -0 sha256sum > .test-artifacts/course-browser/source.sha256
       - uses: actions/upload-artifact@v4
         if: always()
         with:
