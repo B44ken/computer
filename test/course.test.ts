@@ -64,3 +64,16 @@ test('native editor runtime and renderer remain the only gate-level course execu
     const page=fs.readFileSync('components/course/CircuitLab.tsx','utf8');assert(page.includes('CircuitBoard'));assert(page.includes('useCircuit'));assert(!page.includes('<iframe'))
     const c=fs.readFileSync('lib/course/circuits.ts','utf8');assert(c.includes('new Circuit()'));assert(c.includes('new Wire('));assert(c.includes('pulse('));assert(c.includes("from '../../components/gates'"))
 })
+
+
+test('truth-table enumeration preserves the actual editor circuit and its selected input values',()=>{
+    const {truthTable}=require('../lib/truthtable')
+    const lab=makeLab('half'), c=lab.circuit
+    const buttons=lab.inputs.map(name=>c.gates.find(g=>g.item.name===name)!.item)
+    const outputs=lab.outputs.map(name=>c.gates.find(g=>g.item.name===name)!.item)
+    buttons[0].set('Y',true);buttons[1].set('Y',false);c.update()
+    const before=JSON.stringify(serializeCircuit(c)), rows=truthTable(c,buttons,outputs)
+    assert.equal(JSON.stringify(serializeCircuit(c)),before)
+    assert.equal(rows.length,4)
+    assert.deepEqual(rows.map((r:any)=>r.output),[[false,false],[true,false],[true,false],[false,true]])
+})

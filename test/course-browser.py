@@ -39,7 +39,7 @@ try:
         page = context.new_page()
         page.set_default_timeout(25000)
         def track(target):
-            target.on('pageerror', lambda e: errors.append(str(e)))
+            target.on('pageerror', lambda e: (errors.append({'url': target.url, 'error': str(e)}), print('PAGE ERROR', target.url, str(e), flush=True)))
             target.on('response', lambda r: bad_responses.append({'status': r.status, 'url': r.url}) if r.status >= 400 and r.url.startswith(BASE) else None)
         track(page)
         def visit(slug):
@@ -100,6 +100,12 @@ try:
             shot(f'{i+1:02d}-{lesson["slug"]}')
             shot(f'{i+1:02d}-{lesson["slug"]}-full', full=True)
             no_overflow()
+        # Capture every ideal switch-network layout for visual review.
+        visit('/learn/transistors')
+        experiment = page.get_by_role('region', name='transistor experiment')
+        for mode in ['n switch', 'p switch', 'not', 'nand', 'nor', 'or']:
+            experiment.get_by_role('button', name=mode, exact=True).click()
+            shot('transistor-' + mode.replace(' ', '-'), experiment)
         # Transistors: floating output plus four actual NAND experiments.
         visit('/learn/transistors')
         experiment = page.get_by_role('region', name='transistor experiment')
@@ -204,6 +210,7 @@ try:
         visit('/halfadder')
         a = page.locator('[data-gate-name="a"]')
         a.click()
+        shot('original-half-adder-clicked')
         expect(page.locator('[data-gate-name="sum"] rect')).to_have_attribute('fill', '#7f7')
         checks.append('original native computer and half-adder regression')
         # Mobile: independent touch browser context, actual tap on a native gate.

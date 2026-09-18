@@ -11,6 +11,6 @@ export const TruthTable = ({ circuit, ins, outs }: { circuit: Circuit, ins: Gate
 
     return <div className="*:mx-1 *:w-9 *:inline-block">
         {gates.map((gate, i) => <p key={i} className="border-b-2"> {gate.name} </p>)} <br />
-        {vals.map((row, i) => <div key={i}> {row.map((_, j) => <p key={j} className="border-r-2"> {vals[j][i] ? 1 : 0} </p>)} </div>)}
+        {vals.map((row, i) => <div key={i}> {row.map((_, j) => <p key={j} className="border-r-2"> {row[j] ? 1 : 0} </p>)} </div>)}
     </div>
 }
