@@ -1,0 +1,35 @@
+name: computer course
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  course:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: npm install
+      - run: npm run test:course
+      - run: npm run build -- --webpack
+      - run: pip install playwright==1.57.0 && python -m playwright install --with-deps chromium
+      - run: npm run test:course:browser
+      - name: Record verified source
+        if: always()
+        run: |
+          mkdir -p .test-artifacts/course-browser
+          git rev-parse HEAD > .test-artifacts/course-browser/source-commit.txt
+          git ls-files -z components lib course pages test docs tools public | xargs -0 sha256sum > .test-artifacts/course-browser/source.sha256
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: course-browser-evidence
+          path: .test-artifacts/course-browser/
+          retention-days: 14

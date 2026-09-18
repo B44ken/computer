@@ -54,7 +54,10 @@ Toolbox accepts optional allowed kinds and disabled keyboard shortcuts (several
 labs can share a page). The existing CircuitBoard uses pointer events for mouse
 and touch; it still connects the same native objects and supports inspect,
 wire, erase and moving gates. No original combinational gate implementation
-or simulator execution loop was replaced for this course.
+or simulator execution loop was replaced for this course. SVG pin titles use a
+single string to preserve server/client rendering, and resizing callbacks stop
+when a board unmounts. Truth-table inspection now evaluates a copy rather than
+changing the live circuit’s input buttons; its displayed rows are also corrected.
 
 ## run and verify
 
@@ -81,7 +84,7 @@ an already-running server, `CHROMIUM` for another executable, or
 `BROWSER_OUTPUT` for another artifact directory. Nothing is mocked in this
 browser test.
 
-The unit suite checks lesson/marker consistency, grading/serialization,
+The 27-test unit suite checks lesson/marker consistency, grading/serialization,
 transistor truth tables/floating/short behavior, actual wire failures and
 repairs, allowed components, geometry, feedback/state and all six programming
 images. Existing gate-computer CI continues its independent native and HDL

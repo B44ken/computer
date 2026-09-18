@@ -29,7 +29,12 @@ export function switchCircuit(mode:SwitchMode){
         wire('out',[180,169],[180,250],[380,250],[380,169]);wire('out',[280,250],[280,306])
         wire('nmid',[280,354],[280,390]);wire('gnd',[280,438],[280,470])
     }else if(mode==='nor')nor(280,'out')
-    else {nor(240,'nor');inv(650,'nor','out');wire('nor',[240,280],[460,280]);wire('out',[650,250],[740,250])}
+    else {
+        nor(240,'nor');inv(650,'nor','out')
+        wire('nor',[240,280],[520,280],[520,145],[620,145])
+        wire('nor',[520,280],[520,365],[620,365])
+        wire('out',[650,250],[740,250])
+    }
     if(mode!=='or')wire('out',[280,250],[480,250])
     return {switches,segments,width:mode==='or'?820:580,height:510}
 }
