@@ -76,7 +76,7 @@ function routeOnce(placement,priority=[]) {
   const pins=nodes.flatMap(c=>cellPins(c).map(p=>({...p,node:c.id})));
   for(const c of nodes)for(let y=c.y;y<=c.y+c.h;y++)for(let x=c.x;x<=c.x+c.w;x++)blocked[at(x,y)]=1;
   const memory=nodes.find(c=>c.gate.type==='Memory');
-  const labels=[{x:memory.x-1,y:memory.y-6,w:memory.w+2,h:5},...placement.groups.map(g=>({x:g.x,y:g.y-4,w:Math.ceil(g.title.length*.62)+2,h:3}))];
+  const labels=[...(memory?[{x:memory.x-1,y:memory.y-6,w:memory.w+2,h:5}]:[]),...placement.groups.map(g=>({x:g.x,y:g.y-4,w:Math.ceil(g.title.length*.62)+2,h:3}))];
   for(const r of labels)for(let y=r.y;y<=r.y+r.h;y++)for(let x=r.x;x<=r.x+r.w;x++)blocked[at(x,y)]=1;
   for(const p of pins) {
     if(!nets.has(p.net))nets.set(p.net,{name:p.net,pins:[],vertices:new Set()});nets.get(p.net).pins.push(p);
